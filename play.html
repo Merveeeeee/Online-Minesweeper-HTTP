@@ -1,9 +1,172 @@
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        display: absolute;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        flex-direction: column;
+    }
+    .container {
+        display: flex;
+        margin: 50px;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        border: 1px solid #000000;
+        border-radius: 5px;
+    }
+    h1 {
+        background-color: #333;
+        color: #fff;
+        margin: 0;
+        padding: 10px;
+        text-align: center;
+        width: 100%;
+    }
+    p {
+        text-align: center;
+        margin: 5px;
+    }
+    form {
+        margin-top: 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    input[type="text"] {
+        padding: 10px;
+        margin: 5px;
+        font-size: 16px;
+        text-align: center;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        width: 200px;
+    }
+    input[type="submit"] {
+        padding: 10px 20px;
+        font-size: 16px;
+        color: #fff;
+        background-color: #333;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    input[type="submit"]:hover {
+        background-color: #555;
+    }
+    #grid {
+        display: grid;
+        grid-template-columns: repeat(7, 40px);
+        grid-gap: 5px;
+        justify-content: center;
+    }
+    .cell {
+        width: 40px;
+        height: 40px;
+        border: 1px solid #ccc;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #ddd;
+        cursor: pointer;
+        &:hover {
+            background-color: #eee;
+        }
+    }
+    .revealed {
+        background-color: #fff;
+    }
+    .flagged {
+        background-color: #ffa;
+    }
+</style>
+
 <html>
     <head>
         <title>Play Minesweeper</title>
     </head>
     <body>
-        <h1>Play</h1>
-        <p>Play the game</p>
+        <h1>Minesweeper</h1>
+        <div class="container">
+            <form method="POST" action="">
+                <input type="text" name="playerName" placeholder="Your name" required />
+                <input type="submit" value="Submit Name" />
+            </form>
+        </div>
+        <div id="grid"></div>
+        <p id="status"></p>
+
+        <script>
+            // Connect to the WebSocket server
+            const ws = new WebSocket("ws://localhost:8013/ws");
+
+            // Elements
+            const grid = document.getElementById("grid");
+            const status = document.getElementById("status");
+
+            // Initialize the grid
+            const rows = 7, cols = 7; // Adjust based on your game size
+            const cells = [];
+            for (let i = 0; i < rows; i++) {
+                for (let j = 0; j < cols; j++) {
+                    // Display each cell as a div element
+                    const cell = document.createElement("div");
+                    cell.classList.add("cell");
+                    cell.dataset.row = i;
+                    cell.dataset.col = j;
+                    grid.appendChild(cell);
+                    cells.push(cell);
+
+                    // Add event listeners for clicks
+                    cell.addEventListener("click", () => {
+                        ws.send(`TRY ${i} ${j}`);
+                    });
+                    cell.addEventListener("contextmenu", (e) => {
+                        e.preventDefault();
+                        ws.send(`FLAG ${i} ${j}`);
+                    });
+                }
+            }
+
+            // WebSocket event listeners
+            ws.onopen = () => {
+                status.textContent = "Connected to the game server.";
+            };
+
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data); // Assume the server sends JSON
+                updateGrid(data.grid);
+            };
+
+            ws.onerror = (error) => {
+                status.textContent = "WebSocket error: " + error.message;
+            };
+
+            ws.onclose = () => {
+                status.textContent = "Disconnected from the server.";
+            };
+
+            // Update the grid based on server data
+            function updateGrid(gridData) {
+                cells.forEach((cell) => {
+                    const row = cell.dataset.row;
+                    const col = cell.dataset.col;
+                    const value = gridData[row][col];
+
+                    cell.textContent = value === "B" ? "💣" : value;
+                    cell.classList.remove("revealed", "flagged");
+
+                    if (value === "F") {
+                        cell.classList.add("flagged");
+                    } else if (value !== "H") {
+                        cell.classList.add("revealed");
+                    }
+                });
+            }
+        </script>
     </body>
 </html>

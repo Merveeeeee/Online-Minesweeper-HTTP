@@ -4,7 +4,7 @@ import java.net.*;
 public class MinesweeperServer
 {
     public static final short MSG_SIZE = 1024;
-    public static final short SERVER_PORT = 2377;
+    public static final short SERVER_PORT = 8013;
     private static final String QUIT_COMMAND = "QUIT";
     private static final String TRY_COMMAND = "TRY";
     private static final String FLAG_COMMAND = "FLAG";
@@ -38,16 +38,7 @@ public class MinesweeperServer
         // Start the server
         try(ServerSocket serverSocket = new ServerSocket(SERVER_PORT))
         {
-            // Handle the maximum number of threads
-            if(MinesweeperServer.maxThreads <= 0)
-            {
-                System.out.println("No threads available.");
-                System.exit(1);
-            }
-            MinesweeperServer.maxThreads--;
-
             System.out.println("New server socket started on port " + SERVER_PORT);
-            System.out.println("Number of threads available: " + MinesweeperServer.maxThreads);
             while (true)
             {
                 handleClientConnection(serverSocket);
@@ -81,6 +72,16 @@ public class MinesweeperServer
                 clientSocket.close();
                 return;
             }
+
+            // Handle the maximum number of threads
+            if(MinesweeperServer.maxThreads <= 0)
+            {
+                System.out.println("No threads available.");
+                clientSocket.close();
+                return;
+            }
+            //MinesweeperServer.maxThreads--;
+            System.out.println("Number of threads available: " + MinesweeperServer.maxThreads);
             // Create a new worker thread for the client to process the client's requests
             Worker worker = new Worker(clientSocket);
             worker.start();
