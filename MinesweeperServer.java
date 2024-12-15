@@ -12,6 +12,8 @@ public class MinesweeperServer
     private static final short GRID_SIZE = 7;
     private static final int INACTIVE_TIME_OUT = 60000;
 
+    private static int maxThreads = 0;
+
     /**
      * Main method for the MinesweeperServer class.
      * @param args The command line arguments.
@@ -19,9 +21,33 @@ public class MinesweeperServer
      */
     public static void main(String[] args) throws IOException
     {
+        // Get the number of threads from the command line
+        if(args.length != 1)
+        {
+            System.out.println("Error: Invalid number of arguments.");
+            System.out.println("Usage: java MinesweeperServer <number of threads>");
+            System.exit(1);
+        }
+        MinesweeperServer.maxThreads = Integer.parseInt(args[0]);
+        if(MinesweeperServer.maxThreads <= 0)
+        {
+            System.out.println("Number of threads must be greater than 0.");
+            System.exit(1);
+        }
+
+        // Start the server
         try(ServerSocket serverSocket = new ServerSocket(SERVER_PORT))
         {
+            // Handle the maximum number of threads
+            if(MinesweeperServer.maxThreads <= 0)
+            {
+                System.out.println("No threads available.");
+                System.exit(1);
+            }
+            MinesweeperServer.maxThreads--;
+
             System.out.println("New server socket started on port " + SERVER_PORT);
+            System.out.println("Number of threads available: " + MinesweeperServer.maxThreads);
             while (true)
             {
                 handleClientConnection(serverSocket);
