@@ -1,5 +1,6 @@
 import java.io.*;
 import java.net.*;
+import java.security.NoSuchAlgorithmException;
 
 class Worker extends Thread
 {
@@ -18,6 +19,9 @@ class Worker extends Thread
             MinesweeperServer.processClientRequests(clientSocket);
         }
         catch(IOException e)
+        {
+            e.printStackTrace();
+        } catch (NoSuchAlgorithmException e)
         {
             e.printStackTrace();
         }

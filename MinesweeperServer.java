@@ -1,5 +1,7 @@
 import java.io.*;
 import java.net.*;
+import java.security.*;
+import java.util.Base64;
 
 public class MinesweeperServer
 {
@@ -119,50 +121,93 @@ public class MinesweeperServer
      * @param webSocket The WebSocket object.
      * @throws IOException If an I/O error occurs.
      */
-    public static void processClientRequests(Socket clientSocket) throws IOException
-    {
-        
-        Grid grid = new Grid(GRID_SIZE);
+    public static void processClientRequests(Socket clientSocket) throws IOException, NoSuchAlgorithmException
+    {  
+        // ============ Establish the handshake with the client ===============
+        // DO NOT MODIFY THIS CODE
+        BufferedReader input = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+        OutputStream output = clientSocket.getOutputStream();
+    
+        // Lire les en-têtes de la requête WebSocket
+        String line;
+        String clientKey = null;
+    
+        while (!(line = input.readLine()).isEmpty())
+        {
+            if (line.startsWith("Sec-WebSocket-Key:"))
+            {
+                clientKey = line.split(":")[1].trim();
+            }
+        }
+    
+        if (clientKey != null)
+        {
+            // Compute the Sec-WebSocket-Accept key
+            String magicString = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+            String acceptKey = Base64.getEncoder()
+                    .encodeToString(MessageDigest.getInstance("SHA-1")
+                    .digest((clientKey + magicString).getBytes("UTF-8")));
+    
+            // Send the handshake response to the client
+            String response = "HTTP/1.1 101 Switching Protocols\r\n" +
+                              "Upgrade: websocket\r\n" +
+                              "Connection: Upgrade\r\n" +
+                              "Sec-WebSocket-Accept: " + acceptKey + "\r\n\r\n";
+            output.write(response.getBytes("UTF-8"));
+            output.flush();
+            System.out.println("WebSocket handshake successful.");
+        }
+        else
+        {
+            System.out.println("WebSocket handshake failed.");
+            return;
+        }
+        //===================================================================
+    
         // Create a new WebSocket object for the client
         WebSocket webSocket = new WebSocket(clientSocket);
         //sendHtmlPage(webSocket);
 
         // Read the input from the client
         String receivedMessage = null;
+        // Create a new grid object
+        Grid grid = new Grid(GRID_SIZE);
         // Set the timeout for the client socket
         clientSocket.setSoTimeout(INACTIVE_TIME_OUT);
+        try
+        {
+            // Loop until the client sends a "QUIT" command
+            while(true)
+            {   
+                try
+                { 
+                    // Receive the message from the client
+                    receivedMessage = webSocket.receive();
+                    if (receivedMessage == null || receivedMessage.isEmpty())
+                    {
+                        System.out.println("empty message");
+                        continue;
+                    }
 
-        // Loop until the client sends a "QUIT" command
-        while(true)
-        {   
-            try
-            { 
-                // Receive the message from the client
-                receivedMessage = webSocket.receive();
-                if (receivedMessage == null || receivedMessage.isEmpty())
-                {
-                    System.out.println("empty message");
-                    continue;
+                    System.out.println("Received message: " + receivedMessage);
+                    webSocket.send("{\"message\": \"" + receivedMessage + "\"}");
+                    //processCommand
+                    //    (receivedMessage, grid, outputServer, clientSocket);
                 }
-
-                System.out.println("Received message: " + receivedMessage);
-                //processCommand
-                //    (receivedMessage, grid, outputServer, clientSocket);
-            }
-            catch (IOException e) 
-            {
-                // Vérifiez si l'exception est causée par un opcode non pris en charge
-                if (e.getMessage().contains("Unsupported opcode"))
+                catch (IOException e) 
                 {
-                    System.out.println("Unsupported opcode");
-                    continue;
-                }
-                else
-                {
-                    throw e; // Rejeter d'autres erreurs si nécessaire
+                    System.out.println("Client " + clientSocket.getPort() + " timed out.");
+                    break;
                 }
             }
         }
+        finally
+        {
+            // Close the client socket
+            System.out.println("Client " + clientSocket.getPort() + " disconnected.");
+            clientSocket.close();
+        }
+        
     }
     
 

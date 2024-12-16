@@ -103,6 +103,29 @@
             // Connect to the WebSocket server
             const ws = new WebSocket("ws://localhost:8013/ws");
 
+            // WebSocket event listeners
+            ws.onopen = function(event) {
+                status.textContent = "Connected to the game server.";
+                console.log("Connected to the game server.");
+                ws.send("Hello");
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data); // Assume the server sends JSON
+                console.log("Received:", data);
+                //updateGrid(data.grid);
+            };
+
+            ws.onerror = (error) => {
+                status.textContent = "WebSocket error: " + error.message;
+                console.error("WebSocket error: ", error);
+            };
+
+            ws.onclose = () => {
+                status.textContent = "Disconnected from the server.";
+                console.log("Disconnected from the server.");
+            };
+
             // Elements
             const grid = document.getElementById("grid");
             const status = document.getElementById("status");
@@ -129,29 +152,6 @@
                     });
                 }
             }
-
-            // WebSocket event listeners
-            ws.onopen = () => {
-                status.textContent = "Connected to the game server.";
-                ws.send("HTTP/1.1 200 OK\r\n" +
-                       "Content-Type: text/html\r\n" +
-                       "Connection: close\r\n" +
-                       "\r\n" +
-                       "Hello");
-            };
-
-            ws.onmessage = (event) => {
-                const data = JSON.parse(event.data); // Assume the server sends JSON
-                //updateGrid(data.grid);
-            };
-
-            ws.onerror = (error) => {
-                status.textContent = "WebSocket error: " + error.message;
-            };
-
-            ws.onclose = () => {
-                status.textContent = "Disconnected from the server.";
-            };
 
             // Update the grid based on server data
             function updateGrid(gridData) {
