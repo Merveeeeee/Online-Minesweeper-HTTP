@@ -155,20 +155,7 @@
 
             // Update the grid based on server data
             function updateGrid(gridData) {
-                cells.forEach((cell) => {
-                    const row = cell.dataset.row;
-                    const col = cell.dataset.col;
-                    const value = gridData[row][col];
-
-                    cell.textContent = value === "B" ? "💣" : value;
-                    cell.classList.remove("revealed", "flagged");
-
-                    if (value === "F") {
-                        cell.classList.add("flagged");
-                    } else if (value !== "H") {
-                        cell.classList.add("revealed");
-                    }
-                });
+                
             }
         </script>
     </body>

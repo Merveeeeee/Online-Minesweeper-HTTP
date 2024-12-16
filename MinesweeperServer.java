@@ -52,26 +52,6 @@ public class MinesweeperServer
         }
     }
 
-    private static void sendHtmlPage(WebSocket webSocket) throws IOException {
-        BufferedReader htmlReader = new BufferedReader(new FileReader("play.html")); // Assurez-vous que le fichier HTML est présent
-        StringBuilder htmlContent = new StringBuilder();
-    
-        // Lire le fichier HTML
-        String line;
-        while ((line = htmlReader.readLine()) != null) {
-            htmlContent.append(line).append("\n");
-        }
-        htmlReader.close();
-    
-        // Envoyer le contenu HTML via WebSocket
-        webSocket.send("HTTP/1.1 200 OK\r\n" +
-                       "Content-Type: text/html\r\n" +
-                       "Connection: close\r\n" +
-                       "\r\n" +
-                       htmlContent.toString());
-    }
-
-
     /**
      * Handle the connection between the server and the client.
      * @param server The MinesweeperServer object.
@@ -86,27 +66,38 @@ public class MinesweeperServer
             Socket clientSocket = serverSocket.accept();
             if(clientSocket.isConnected())
             {
-                System.out.println("Client " + clientSocket.getPort() + " connected.");
+                BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+                String line = reader.readLine();
+                // Check if the client is using HTTP (Sending HTML page)
+                if(line != null && line.startsWith("GET / HTTP/1.1"))
+                {
+                    System.out.println("Redirecting client " + clientSocket.getPort() + " to play.html");
+                    redirectToPlayPage(clientSocket);
+                    return;
+                }
+                else if(line != null && line.startsWith("GET /play.html HTTP/1.1"))
+                {
+                    System.out.println("Sending dynamic play.html page to client " + clientSocket.getPort());
+                    sendDynamicHtmlPage(clientSocket);
+                    return;
+                }
+                // Check if the client is using a WebSocket
+                else if(line.contains("Upgrade"))
+                {
+                    // Handle the maximum number of threads
+                    if(MinesweeperServer.maxThreads <= 0)
+                    {
+                        System.out.println("No threads available.");
+                        clientSocket.close();
+                        return;
+                    }
+                    MinesweeperServer.maxThreads--;
+                    System.out.println("Number of threads available: " + MinesweeperServer.maxThreads);
+                    // Create a new worker thread for the client to process the client's requests
+                    Worker worker = new Worker(clientSocket);
+                    worker.start();
+                }
             }
-            else
-            {
-                System.out.println("Client failed to connect.");
-                clientSocket.close();
-                return;
-            }
-
-            // Handle the maximum number of threads
-            if(MinesweeperServer.maxThreads <= 0)
-            {
-                System.out.println("No threads available.");
-                clientSocket.close();
-                return;
-            }
-            MinesweeperServer.maxThreads--;
-            System.out.println("Number of threads available: " + MinesweeperServer.maxThreads);
-            // Create a new worker thread for the client to process the client's requests
-            Worker worker = new Worker(clientSocket);
-            worker.start();
         } 
         catch(IOException e)
         {
@@ -128,10 +119,10 @@ public class MinesweeperServer
         BufferedReader input = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
         OutputStream output = clientSocket.getOutputStream();
     
-        // Lire les en-têtes de la requête WebSocket
         String line;
         String clientKey = null;
-    
+        
+        // Read the client handshake
         while (!(line = input.readLine()).isEmpty())
         {
             if (line.startsWith("Sec-WebSocket-Key:"))
@@ -513,4 +504,140 @@ public class MinesweeperServer
     {
         MinesweeperServer.maxThreads = maxThreads;
     }
+
+    private static void sendDynamicHtmlPage(Socket clientSocket) throws IOException
+    {
+        OutputStream output = clientSocket.getOutputStream();
+    
+        // === En-têtes HTTP ===
+        String httpResponse = "HTTP/1.1 200 OK\r\n" +
+                              "Content-Type: text/html\r\n" +
+                              "Connection: close\r\n" +
+                              "\r\n";
+    
+        // === Contenu HTML, CSS et JavaScript ===
+        String htmlContent = "<!DOCTYPE html>\n" +
+                             "<html lang=\"en\">\n" +
+                             "<head>\n" +
+                             "    <meta charset=\"UTF-8\">\n" +
+                             "    <title>Play Minesweeper</title>\n" +
+                             "    <style>\n" +
+                             "        body {\n" +
+                             "            font-family: Arial, sans-serif;\n" +
+                             "            margin: 0;\n" +
+                             "            padding: 0;\n" +
+                             "            display: flex;\n" +
+                             "            justify-content: center;\n" +
+                             "            align-items: center;\n" +
+                             "            height: 100vh;\n" +
+                             "            flex-direction: column;\n" +
+                             "        }\n" +
+                             "        .container {\n" +
+                             "            display: flex;\n" +
+                             "            margin: 50px;\n" +
+                             "            flex-direction: column;\n" +
+                             "            justify-content: center;\n" +
+                             "            align-items: center;\n" +
+                             "            border: 1px solid #000000;\n" +
+                             "            border-radius: 5px;\n" +
+                             "        }\n" +
+                             "        h1 {\n" +
+                             "            background-color: #333;\n" +
+                             "            color: #fff;\n" +
+                             "            margin: 0;\n" +
+                             "            padding: 10px;\n" +
+                             "            text-align: center;\n" +
+                             "            width: 100%;\n" +
+                             "        }\n" +
+                             "        #grid {\n" +
+                             "            display: grid;\n" +
+                             "            grid-template-columns: repeat(7, 40px);\n" +
+                             "            grid-gap: 5px;\n" +
+                             "            justify-content: center;\n" +
+                             "        }\n" +
+                             "        .cell {\n" +
+                             "            width: 40px;\n" +
+                             "            height: 40px;\n" +
+                             "            border: 1px solid #ccc;\n" +
+                             "            display: flex;\n" +
+                             "            align-items: center;\n" +
+                             "            justify-content: center;\n" +
+                             "            background-color: #ddd;\n" +
+                             "            cursor: pointer;\n" +
+                             "        }\n" +
+                             "        .cell:hover {\n" +
+                             "            background-color: #eee;\n" +
+                             "        }\n" +
+                             "    </style>\n" +
+                             "</head>\n" +
+                             "<body>\n" +
+                             "    <h1>Minesweeper</h1>\n" +
+                             "    <div class=\"container\">\n" +
+                             "        <form>\n" +
+                             "            <input type=\"text\" name=\"playerName\" placeholder=\"Your name\" required />\n" +
+                             "            <input type=\"submit\" value=\"Submit Name\" />\n" +
+                             "        </form>\n" +
+                             "    </div>\n" +
+                             "    <div id=\"grid\"></div>\n" +
+                             "    <p id=\"status\"></p>\n" +
+                             "    <script>\n" +
+                             "        const ws = new WebSocket(\"ws://localhost:8013/ws\");\n" +
+                             "        const grid = document.getElementById('grid');\n" +
+                             "        const status = document.getElementById('status');\n" +
+                             "\n" +
+                             "        ws.onopen = () => {\n" +
+                             "            status.textContent = \"Connected to the game server.\";\n" +
+                             "            ws.send(\"Hello\");\n" +
+                             "        };\n" +
+                             "\n" +
+                             "        ws.onmessage = (event) => {\n" +
+                             "            console.log(\"Received:\", event.data);\n" +
+                             "        };\n" +
+                             "\n" +
+                             "        ws.onerror = (error) => {\n" +
+                             "            status.textContent = \"WebSocket error: \" + error.message;\n" +
+                             "        };\n" +
+                             "\n" +
+                             "        ws.onclose = () => {\n" +
+                             "            status.textContent = \"Disconnected from the server.\";\n" +
+                             "        };\n" +
+                             "\n" +
+                             "        const rows = 7, cols = 7;\n" +
+                             "        for (let i = 0; i < rows; i++) {\n" +
+                             "            for (let j = 0; j < cols; j++) {\n" +
+                             "                const cell = document.createElement(\"div\");\n" +
+                             "                cell.classList.add(\"cell\");\n" +
+                             "                grid.appendChild(cell);\n" +
+                             "                cell.addEventListener(\"click\", () => ws.send(`TRY ${i} ${j}`));\n" +
+                             "                cell.addEventListener(\"contextmenu\", (e) => {\n" +
+                             "                    e.preventDefault();\n" +
+                             "                    ws.send(`FLAG ${i} ${j}`);\n" +
+                             "                });\n" +
+                             "            }\n" +
+                             "        }\n" +
+                             "    </script>\n" +
+                             "</body>\n" +
+                             "</html>";
+    
+        // === Envoyer la réponse HTTP ===
+        output.write(httpResponse.getBytes());
+        output.write(htmlContent.getBytes());
+        output.flush();
+        output.close();
+    }
+
+    private static void redirectToPlayPage(Socket clientSocket) throws IOException
+    {
+        OutputStream output = clientSocket.getOutputStream();
+        
+        // Réponse HTTP avec le code 303 et l'en-tête Location
+        String httpResponse = "HTTP/1.1 303 See Other\r\n" +
+                              "Location: /play.html\r\n" + // URL cible
+                              "Connection: close\r\n" +
+                              "\r\n";
+        output.write(httpResponse.getBytes("UTF-8"));
+        output.flush();
+        clientSocket.close();
+    }
+    
 }
