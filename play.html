@@ -70,12 +70,21 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background-color: #ddd;
+        background-color: #757575;
         cursor: pointer;
         &:hover {
             background-color: #eee;
         }
     }
+    .cell.number-1 { color: blue; }
+    .cell.number-2 { color: green; }
+    .cell.number-3 { color: red; }
+    .cell.number-4 { color: darkblue; }
+    .cell.number-5 { color: brown; }
+    .cell.number-6 { color: cyan; }
+    .cell.number-7 { color: black; }
+    .cell.number-8 { color: gray; }
+
     .revealed {
         background-color: #fff;
     }
@@ -111,9 +120,11 @@
             };
 
             ws.onmessage = (event) => {
-                const data = JSON.parse(event.data); // Assume the server sends JSON
-                console.log("Received:", data);
-                //updateGrid(data.grid);
+                // Parse the JSON message received on the WebSocket
+                const gridData = event.data;
+                console.log("Received:", gridData);
+                updateGrid(gridData);
+                
             };
 
             ws.onerror = (error) => {
@@ -131,7 +142,7 @@
             const status = document.getElementById("status");
 
             // Initialize the grid
-            const rows = 7, cols = 7; // Adjust based on your game size
+            const rows = 7, cols = 7;
             const cells = [];
             for (let i = 0; i < rows; i++) {
                 for (let j = 0; j < cols; j++) {
@@ -154,8 +165,43 @@
             }
 
             // Update the grid based on server data
-            function updateGrid(gridData) {
-                
+            /// @param {Array} gridData - 2D array of cell states as strings
+            function updateGrid(gridData)
+            {
+                const rows = gridData.split("\r\n").filter(line => line.trim() !== "");
+                for (let i = 0; i < rows.length; i++)
+                {
+                    for (let j = 0; j < rows[i].length; j++)
+                    {
+                        const cell = cells[i * cols + j];
+                        const state = rows[i][j];
+                        cell.textContent = "";
+                        cell.className = "cell";
+                        
+                        // Don't display empty cells
+                        if (state === "#")
+                        {
+                            cell.textContent = "";
+                        } 
+                        // Display numbers and colors for cell states
+                        else if (!isNaN(state) && state !== " ")
+                        {
+                            cell.textContent = state;
+                            cell.classList.add(`number-${state}`);
+                            cell.classList.add("revealed");
+                        }
+                        else if(state === "B")
+                        {
+                            cell.classList.add("revealed");
+                            cell.textContent = "💣";
+                        }
+                        else if (state === "F")
+                        {
+                            cell.classList.add("revealed");
+                            cell.textContent = "🚩";
+                        }
+                    }
+                }
             }
         </script>
     </body>

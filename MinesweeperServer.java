@@ -68,17 +68,18 @@ public class MinesweeperServer
             {
                 BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
                 String line = reader.readLine();
-                // Check if the client is using HTTP (Sending HTML page)
+                // Redirect the client to the play.html page if requested
                 if(line != null && line.startsWith("GET / HTTP/1.1"))
                 {
                     System.out.println("Redirecting client " + clientSocket.getPort() + " to play.html");
                     redirectToPlayPage(clientSocket);
                     return;
                 }
+                // Send the dynamic play.html page to the client if requested
                 else if(line != null && line.startsWith("GET /play.html HTTP/1.1"))
                 {
                     System.out.println("Sending dynamic play.html page to client " + clientSocket.getPort());
-                    sendDynamicHtmlPage(clientSocket);
+                    sendInitialHtmlPage(clientSocket);
                     return;
                 }
                 // Check if the client is using a WebSocket
@@ -99,7 +100,7 @@ public class MinesweeperServer
                             clientKey = line.split(":")[1].trim();
                         }
                     }
-                
+                    // If websocket request, start the handshake
                     if (isWebSocketRequest)
                     {
                         System.out.println("WebSocket request detected. Starting WebSocket handshake...");
@@ -165,8 +166,6 @@ public class MinesweeperServer
     
         // Create a new WebSocket object for the client
         WebSocket webSocket = new WebSocket(clientSocket);
-        //sendHtmlPage(webSocket);
-
         // Read the input from the client
         String receivedMessage = null;
         // Create a new grid object
@@ -189,9 +188,7 @@ public class MinesweeperServer
                     }
 
                     System.out.println("Received message: " + receivedMessage);
-                    webSocket.send("{\"message\": \"" + receivedMessage + "\"}");
-                    //processCommand
-                    //    (receivedMessage, grid, outputServer, clientSocket);
+                    processCommand(receivedMessage, grid, clientSocket, webSocket);
                 }
                 catch (IOException e) 
                 {
@@ -209,7 +206,6 @@ public class MinesweeperServer
         
     }
     
-
     /**
      * Process the command from the client.
      * @param receivedMessage The message received from the client.
@@ -219,24 +215,28 @@ public class MinesweeperServer
      * @throws IOException If an I/O error occurs.
      */
     private static void processCommand(String receivedMessage, 
-        Grid grid, OutputStream outputServer, Socket clientSocket) throws IOException
+        Grid grid, Socket clientSocket, WebSocket webSocket) throws IOException
     {
         // Verify the command from the client
         if(isQuitCommand(receivedMessage))
         {
-            handleQuitCommand(clientSocket, outputServer);
+            System.out.println("QUIT command received.");
+            handleQuitCommand(clientSocket);
         } 
         else if(isCheatCommand(receivedMessage))
         {
-            handleCheatCommand(grid, outputServer);
+            System.out.println("CHEAT command received.");
+            handleCheatCommand(grid, webSocket);
         } 
         else if(isFlagCommand(receivedMessage))
         {
-            handleFlagCommand(outputServer, receivedMessage, grid);
+            System.out.println("FLAG command received.");
+            handleFlagCommand(receivedMessage, grid, webSocket);
         } 
         else if(isTryCommand(receivedMessage))
         {
-            boolean isOver = handleTryCommand(outputServer, receivedMessage, grid);
+            System.out.println("TRY command received.");
+            boolean isOver = handleTryCommand(receivedMessage, grid, webSocket);
             if(isOver)
             {
                 System.out.println("Game over for client " 
@@ -246,7 +246,7 @@ public class MinesweeperServer
         } 
         else 
         {
-            handleWrongCommand(clientSocket, outputServer);
+            handleWrongCommand(clientSocket);
             System.out.println("Invalid input: "+receivedMessage);
         }
     }
@@ -257,7 +257,7 @@ public class MinesweeperServer
      * @param outputServer The output stream to the client.
      * @throws IOException If an I/O error occurs.
      */
-    private static void handleQuitCommand(Socket clientSocket, OutputStream outputServer)
+    private static void handleQuitCommand(Socket clientSocket)
         throws IOException
     {
         printDisconnectedMessage(clientSocket);
@@ -270,11 +270,11 @@ public class MinesweeperServer
      * @param outputServer The output stream to the client.
      * @throws IOException If an I/O error occurs.
      */
-    private static void handleCheatCommand(Grid grid, OutputStream outputServer)
+    private static void handleCheatCommand(Grid grid, WebSocket webSocket)
         throws IOException
     {
-        outputServer.write(grid.revealAllCells().getBytes());
-        outputServer.flush();
+        //outputServer.write(grid.revealAllCells().getBytes());
+        //outputServer.flush();
     }
     
     /**
@@ -282,7 +282,7 @@ public class MinesweeperServer
      * @param outputServer The output stream to the client.
      * @throws IOException If an I/O error occurs.
      */
-    private static void handleFlagCommand(OutputStream outputServer, String input, Grid grid) 
+    private static void handleFlagCommand(String input, Grid grid, WebSocket webSocket) 
         throws IOException
     {
         // Write the updated grid to the client if the coordinates are valid
@@ -290,18 +290,18 @@ public class MinesweeperServer
         {
             if(!areCoordinatesInRange(input))
             {
-                outputServer.write("INVALID RANGE\r\n\r\n".getBytes());
-                outputServer.flush();
+                //outputServer.write("INVALID RANGE\r\n\r\n".getBytes());
+                //outputServer.flush();
                 return;
             }
             grid.flagCell(getXCoordinate(input), getYCoordinate(input));
-            outputServer.write(grid.convertGridToProtocol(false).getBytes());
-            outputServer.flush();
+            webSocket.send(grid.convertGridToProtocol(false));
+            //outputServer.flush();
         }
         else
         {
-            outputServer.write("WRONG\r\n\r\n".getBytes());
-            outputServer.flush();
+            //outputServer.write("WRONG\r\n\r\n".getBytes());
+            //outputServer.flush();
         }
     }
     
@@ -310,7 +310,7 @@ public class MinesweeperServer
      * @param outputServer The output stream to the client.
      * @throws IOException If an I/O error occurs.
      */
-    private static boolean handleTryCommand(OutputStream outputServer, String input, Grid grid) throws IOException
+    private static boolean handleTryCommand(String input, Grid grid, WebSocket webSocket) throws IOException
     {
         boolean isOver = false;
         // Write the updated grid to the client if the coordinates are valid
@@ -318,8 +318,8 @@ public class MinesweeperServer
         {
             if(!areCoordinatesInRange(input))
             {
-                outputServer.write("INVALID RANGE\r\n\r\n".getBytes());
-                outputServer.flush();
+                //outputServer.write("INVALID RANGE\r\n\r\n".getBytes());
+                //outputServer.flush();
                 return false;
             }
             grid.revealCell(getXCoordinate(input), getYCoordinate(input));
@@ -333,15 +333,14 @@ public class MinesweeperServer
                 isOver = false;
             }
 
-            // Send the updated grid to the client
-            outputServer.write(grid.convertGridToProtocol(false).getBytes());
-            outputServer.flush();
+            // Send the updated grid to the client (JSON format)
+            webSocket.send(grid.convertGridToProtocol(false));
         }
         else
         {
             // Client sent invalid coordinates
-            outputServer.write("WRONG\r\n\r\n".getBytes());
-            outputServer.flush();
+            //outputServer.write("WRONG\r\n\r\n".getBytes());
+            //outputServer.flush();
             isOver = false;
         }
         return isOver;
@@ -353,11 +352,10 @@ public class MinesweeperServer
      * @param outputServer The output stream to the client.
      * @throws IOException If an I/O error occurs.
      */
-    private static void handleWrongCommand(Socket clientSocket, OutputStream outputServer) 
-        throws IOException
+    private static void handleWrongCommand(Socket clientSocket) throws IOException
     {
-        outputServer.write("WRONG\r\n\r\n".getBytes());
-        outputServer.flush();
+        //outputServer.write("WRONG\r\n\r\n".getBytes());
+        //outputServer.flush();
         printWrongInputMessage(clientSocket);
     }
 
@@ -513,119 +511,200 @@ public class MinesweeperServer
         MinesweeperServer.maxThreads = maxThreads;
     }
 
-    private static void sendDynamicHtmlPage(Socket clientSocket) throws IOException
+    private static void sendInitialHtmlPage(Socket clientSocket) throws IOException
     {
         OutputStream output = clientSocket.getOutputStream();
     
         // === En-têtes HTTP ===
         String httpResponse = "HTTP/1.1 200 OK\r\n" +
-                              "Content-Type: text/html\r\n" +
-                              "Connection: close\r\n" +
-                              "\r\n";
-    
-        // === Contenu HTML, CSS et JavaScript ===
+        "Content-Type: text/html\r\n" +
+        "Connection: close\r\n" +
+        "\r\n";
+
+        String updateGridFunction = "function updateGrid(gridData) {\n" +
+        "    const rows = gridData.split(\"\\r\\n\").filter(line => line.trim() !== \"\");\n" +
+        "    for (let i = 0; i < rows.length; i++) {\n" +
+        "        for (let j = 0; j < rows[i].length; j++) {\n" +
+        "            const cell = cells[i * cols + j];\n" +
+        "            const state = rows[i][j];\n" +
+        "            cell.textContent = \"\";\n" +
+        "            cell.className = \"cell\";\n" +
+        "\n" +
+        "            if (state === \"#\") {\n" +
+        "                cell.textContent = \"\";\n" +
+        "            } else if (!isNaN(state) && state !== \" \") {\n" +
+        "                cell.textContent = state;\n" +
+        "                cell.classList.add(`number-${state}`);\n" +
+        "                cell.classList.add(\"revealed\");\n" +
+        "            } else if (state === \"B\") {\n" +
+        "                cell.classList.add(\"revealed\");\n" +
+        "                cell.textContent = \"💣\";\n" +
+        "            } else if (state === \"F\") {\n" +
+        "                cell.classList.add(\"revealed\");\n" +
+        "                cell.textContent = \"🚩\";\n" +
+        "            }\n" +
+        "        }\n" +
+        "    }\n" +
+        "}";
+                              
+
+        String style = "<style>\n" +
+        "    body {\n" +
+        "        font-family: Arial, sans-serif;\n" +
+        "        margin: 0;\n" +
+        "        padding: 0;\n" +
+        "        display: absolute;\n" +
+        "        justify-content: center;\n" +
+        "        align-items: center;\n" +
+        "        height: 100vh;\n" +
+        "        flex-direction: column;\n" +
+        "    }\n" +
+        "    .container {\n" +
+        "        display: flex;\n" +
+        "        margin: 50px;\n" +
+        "        flex-direction: column;\n" +
+        "        justify-content: center;\n" +
+        "        align-items: center;\n" +
+        "        border: 1px solid #000000;\n" +
+        "        border-radius: 5px;\n" +
+        "    }\n" +
+        "    h1 {\n" +
+        "        background-color: #333;\n" +
+        "        color: #fff;\n" +
+        "        margin: 0;\n" +
+        "        padding: 10px;\n" +
+        "        text-align: center;\n" +
+        "        width: 100%;\n" +
+        "    }\n" +
+        "    p {\n" +
+        "        text-align: center;\n" +
+        "        margin: 5px;\n" +
+        "    }\n" +
+        "    form {\n" +
+        "        margin-top: 20px;\n" +
+        "        display: flex;\n" +
+        "        flex-direction: column;\n" +
+        "        align-items: center;\n" +
+        "    }\n" +
+        "    input[type=\"text\"] {\n" +
+        "        padding: 10px;\n" +
+        "        margin: 5px;\n" +
+        "        font-size: 16px;\n" +
+        "        text-align: center;\n" +
+        "        border: 1px solid #ccc;\n" +
+        "        border-radius: 4px;\n" +
+        "        width: 200px;\n" +
+        "    }\n" +
+        "    input[type=\"submit\"] {\n" +
+        "        padding: 10px 20px;\n" +
+        "        font-size: 16px;\n" +
+        "        color: #fff;\n" +
+        "        background-color: #333;\n" +
+        "        border: none;\n" +
+        "        border-radius: 4px;\n" +
+        "        cursor: pointer;\n" +
+        "    }\n" +
+        "    input[type=\"submit\"]:hover {\n" +
+        "        background-color: #555;\n" +
+        "    }\n" +
+        "    #grid {\n" +
+        "        display: grid;\n" +
+        "        grid-template-columns: repeat(7, 40px);\n" +
+        "        grid-gap: 5px;\n" +
+        "        justify-content: center;\n" +
+        "    }\n" +
+        "    .cell {\n" +
+        "        width: 40px;\n" +
+        "        height: 40px;\n" +
+        "        border: 1px solid #ccc;\n" +
+        "        display: flex;\n" +
+        "        align-items: center;\n" +
+        "        justify-content: center;\n" +
+        "        background-color: #757575;\n" +
+        "        cursor: pointer;\n" +
+        "    }\n" +
+        "    .cell:hover {\n" +
+        "        background-color: #eee;\n" +
+        "    }\n" +
+        "    .cell.number-1 { color: blue; }\n" +
+        "    .cell.number-2 { color: green; }\n" +
+        "    .cell.number-3 { color: red; }\n" +
+        "    .cell.number-4 { color: darkblue; }\n" +
+        "    .cell.number-5 { color: brown; }\n" +
+        "    .cell.number-6 { color: cyan; }\n" +
+        "    .cell.number-7 { color: black; }\n" +
+        "    .cell.number-8 { color: gray; }\n" +
+        "    .revealed {\n" +
+        "        background-color: #fff;\n" +
+        "    }\n" +
+        "    .flagged {\n" +
+        "        background-color: #ffa;\n" +
+        "    }\n" +
+        "</style>";                                      
+
         String htmlContent = "<!DOCTYPE html>\n" +
-                             "<html lang=\"en\">\n" +
-                             "<head>\n" +
-                             "    <meta charset=\"UTF-8\">\n" +
-                             "    <title>Play Minesweeper</title>\n" +
-                             "    <style>\n" +
-                             "        body {\n" +
-                             "            font-family: Arial, sans-serif;\n" +
-                             "            margin: 0;\n" +
-                             "            padding: 0;\n" +
-                             "            display: flex;\n" +
-                             "            justify-content: center;\n" +
-                             "            align-items: center;\n" +
-                             "            height: 100vh;\n" +
-                             "            flex-direction: column;\n" +
-                             "        }\n" +
-                             "        .container {\n" +
-                             "            display: flex;\n" +
-                             "            margin: 50px;\n" +
-                             "            flex-direction: column;\n" +
-                             "            justify-content: center;\n" +
-                             "            align-items: center;\n" +
-                             "            border: 1px solid #000000;\n" +
-                             "            border-radius: 5px;\n" +
-                             "        }\n" +
-                             "        h1 {\n" +
-                             "            background-color: #333;\n" +
-                             "            color: #fff;\n" +
-                             "            margin: 0;\n" +
-                             "            padding: 10px;\n" +
-                             "            text-align: center;\n" +
-                             "            width: 100%;\n" +
-                             "        }\n" +
-                             "        #grid {\n" +
-                             "            display: grid;\n" +
-                             "            grid-template-columns: repeat(7, 40px);\n" +
-                             "            grid-gap: 5px;\n" +
-                             "            justify-content: center;\n" +
-                             "        }\n" +
-                             "        .cell {\n" +
-                             "            width: 40px;\n" +
-                             "            height: 40px;\n" +
-                             "            border: 1px solid #ccc;\n" +
-                             "            display: flex;\n" +
-                             "            align-items: center;\n" +
-                             "            justify-content: center;\n" +
-                             "            background-color: #ddd;\n" +
-                             "            cursor: pointer;\n" +
-                             "        }\n" +
-                             "        .cell:hover {\n" +
-                             "            background-color: #eee;\n" +
-                             "        }\n" +
-                             "    </style>\n" +
-                             "</head>\n" +
-                             "<body>\n" +
-                             "    <h1>Minesweeper</h1>\n" +
-                             "    <div class=\"container\">\n" +
-                             "        <form>\n" +
-                             "            <input type=\"text\" name=\"playerName\" placeholder=\"Your name\" required />\n" +
-                             "            <input type=\"submit\" value=\"Submit Name\" />\n" +
-                             "        </form>\n" +
-                             "    </div>\n" +
-                             "    <div id=\"grid\"></div>\n" +
-                             "    <p id=\"status\"></p>\n" +
-                             "    <script>\n" +
-                             "        const ws = new WebSocket(\"ws://localhost:8013/ws\");\n" +
-                             "        const grid = document.getElementById('grid');\n" +
-                             "        const status = document.getElementById('status');\n" +
-                             "\n" +
-                             "        ws.onopen = () => {\n" +
-                             "            status.textContent = \"Connected to the game server.\";\n" +
-                             "            ws.send(\"Hello\");\n" +
-                             "        };\n" +
-                             "\n" +
-                             "        ws.onmessage = (event) => {\n" +
-                             "            console.log(\"Received:\", event.data);\n" +
-                             "        };\n" +
-                             "\n" +
-                             "        ws.onerror = (error) => {\n" +
-                             "            status.textContent = \"WebSocket error: \" + error.message;\n" +
-                             "        };\n" +
-                             "\n" +
-                             "        ws.onclose = () => {\n" +
-                             "            status.textContent = \"Disconnected from the server.\";\n" +
-                             "        };\n" +
-                             "\n" +
-                             "        const rows = 7, cols = 7;\n" +
-                             "        for (let i = 0; i < rows; i++) {\n" +
-                             "            for (let j = 0; j < cols; j++) {\n" +
-                             "                const cell = document.createElement(\"div\");\n" +
-                             "                cell.classList.add(\"cell\");\n" +
-                             "                grid.appendChild(cell);\n" +
-                             "                cell.addEventListener(\"click\", () => ws.send(`TRY ${i} ${j}`));\n" +
-                             "                cell.addEventListener(\"contextmenu\", (e) => {\n" +
-                             "                    e.preventDefault();\n" +
-                             "                    ws.send(`FLAG ${i} ${j}`);\n" +
-                             "                });\n" +
-                             "            }\n" +
-                             "        }\n" +
-                             "    </script>\n" +
-                             "</body>\n" +
-                             "</html>";
+        "<html>\n" +
+        "<head>\n" +
+        "    <meta charset=\"UTF-8\">\n" +
+        "    <title>Play Minesweeper</title>\n" +
+            style + "\n" +
+        "</head>\n" +
+        "<body>\n" +
+        "    <h1>Minesweeper</h1>\n" +
+        "    <div class=\"container\">\n" +
+        "        <form method=\"POST\" action=\"\">\n" +
+        "            <input type=\"text\" name=\"playerName\" placeholder=\"Your name\" required />\n" +
+        "            <input type=\"submit\" value=\"Submit Name\" />\n" +
+        "        </form>\n" +
+        "    </div>\n" +
+        "    <div id=\"grid\"></div>\n" +
+        "    <p id=\"status\"></p>\n" +
+        "    <script>\n" +
+        "        const ws = new WebSocket(\"ws://localhost:8013/ws\");\n" +
+        "        const grid = document.getElementById(\"grid\");\n" +
+        "        const status = document.getElementById(\"status\");\n" +
+        "        ws.onopen = function(event) {\n" +
+        "            status.textContent = \"Connected to the game server.\";\n" +
+        "            console.log(\"Connected to the game server.\");\n" +
+        "            ws.send(\"Hello\");\n" +
+        "        };\n" +
+        "        ws.onmessage = (event) => {\n" +
+        "            const gridData = event.data;\n" +
+        "            console.log(\"Received:\", gridData);\n" +
+        "            updateGrid(gridData);\n" +
+        "        };\n" +
+        "        ws.onerror = (error) => {\n" +
+        "            status.textContent = \"WebSocket error: \" + error.message;\n" +
+        "            console.error(\"WebSocket error: \", error);\n" +
+        "        };\n" +
+        "        ws.onclose = () => {\n" +
+        "            status.textContent = \"Disconnected from the server.\";\n" +
+        "            console.log(\"Disconnected from the server.\");\n" +
+        "        };\n" +
+        "        const rows = 7, cols = 7;\n" +
+        "        const cells = [];\n" +
+        "        for (let i = 0; i < rows; i++) {\n" +
+        "            for (let j = 0; j < cols; j++) {\n" +
+        "                const cell = document.createElement(\"div\");\n" +
+        "                cell.classList.add(\"cell\");\n" +
+        "                cell.dataset.row = i;\n" +
+        "                cell.dataset.col = j;\n" +
+        "                grid.appendChild(cell);\n" +
+        "                cells.push(cell);\n" +
+        "                cell.addEventListener(\"click\", () => {\n" +
+        "                    ws.send(`TRY ${i} ${j}`);\n" +
+        "                });\n" +
+        "                cell.addEventListener(\"contextmenu\", (e) => {\n" +
+        "                    e.preventDefault();\n" +
+        "                    ws.send(`FLAG ${i} ${j}`);\n" +
+        "                });\n" +
+        "            }\n" +
+        "        }\n" +
+                updateGridFunction + "\n" +
+        "    </script>\n" +
+        "</body>\n" +
+        "</html>";
+
     
         // === Envoyer la réponse HTTP ===
         output.write(httpResponse.getBytes());
