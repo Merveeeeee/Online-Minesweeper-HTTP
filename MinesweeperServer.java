@@ -82,20 +82,39 @@ public class MinesweeperServer
                     return;
                 }
                 // Check if the client is using a WebSocket
-                else if(line.contains("Upgrade"))
+                else
                 {
-                    // Handle the maximum number of threads
-                    if(MinesweeperServer.maxThreads <= 0)
+                    boolean isWebSocketRequest = false;
+                    String clientKey = null;
+                    // Read the headers from the client
+                    while ((line = reader.readLine()) != null && !line.isEmpty())
                     {
-                        System.out.println("No threads available.");
-                        clientSocket.close();
-                        return;
+                        if (line.toLowerCase().contains("upgrade: websocket"))
+                        {
+                            isWebSocketRequest = true;
+                        }
+                        // Get the client key
+                        else if (line.toLowerCase().contains("sec-websocket-key:"))
+                        {
+                            clientKey = line.split(":")[1].trim();
+                        }
                     }
-                    MinesweeperServer.maxThreads--;
-                    System.out.println("Number of threads available: " + MinesweeperServer.maxThreads);
-                    // Create a new worker thread for the client to process the client's requests
-                    Worker worker = new Worker(clientSocket);
-                    worker.start();
+                
+                    if (isWebSocketRequest)
+                    {
+                        System.out.println("WebSocket request detected. Starting WebSocket handshake...");
+                        if (MinesweeperServer.getMaxThreads() <= 0)
+                        {
+                            System.out.println("No threads available.");
+                            clientSocket.close();
+                            return;
+                        }
+                        MinesweeperServer.setMaxThreads(MinesweeperServer.getMaxThreads() - 1);
+                        System.out.println("Number of threads available: " + MinesweeperServer.getMaxThreads());
+                
+                        Worker worker = new Worker(clientSocket, clientKey);
+                        worker.start();
+                    }
                 }
             }
         } 
@@ -112,25 +131,14 @@ public class MinesweeperServer
      * @param webSocket The WebSocket object.
      * @throws IOException If an I/O error occurs.
      */
-    public static void processClientRequests(Socket clientSocket) throws IOException, NoSuchAlgorithmException
+    public static void processClientRequests(Socket clientSocket, String key) throws IOException, NoSuchAlgorithmException
     {  
         // ============ Establish the handshake with the client ===============
         // DO NOT MODIFY THIS CODE
-        BufferedReader input = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
         OutputStream output = clientSocket.getOutputStream();
+        System.out.println("Processing client requests for client " + clientSocket.getPort());
     
-        String line;
-        String clientKey = null;
-        
-        // Read the client handshake
-        while (!(line = input.readLine()).isEmpty())
-        {
-            if (line.startsWith("Sec-WebSocket-Key:"))
-            {
-                clientKey = line.split(":")[1].trim();
-            }
-        }
-    
+        String clientKey = key;
         if (clientKey != null)
         {
             // Compute the Sec-WebSocket-Accept key

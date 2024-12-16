@@ -5,9 +5,11 @@ import java.security.NoSuchAlgorithmException;
 class Worker extends Thread
 {
     Socket clientSocket;
-    Worker(Socket clientSocket)
+    String key;
+    Worker(Socket clientSocket, String key)
     {
         this.clientSocket = clientSocket;
+        this.key = key;
         // Create a new WebSocket object for the client
     }
     
@@ -16,7 +18,7 @@ class Worker extends Thread
     {
         try
         {
-            MinesweeperServer.processClientRequests(clientSocket);
+            MinesweeperServer.processClientRequests(clientSocket, key);
         }
         catch(IOException e)
         {
