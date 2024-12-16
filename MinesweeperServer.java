@@ -50,6 +50,26 @@ public class MinesweeperServer
         }
     }
 
+    private static void sendHtmlPage(WebSocket webSocket) throws IOException {
+        BufferedReader htmlReader = new BufferedReader(new FileReader("play.html")); // Assurez-vous que le fichier HTML est présent
+        StringBuilder htmlContent = new StringBuilder();
+    
+        // Lire le fichier HTML
+        String line;
+        while ((line = htmlReader.readLine()) != null) {
+            htmlContent.append(line).append("\n");
+        }
+        htmlReader.close();
+    
+        // Envoyer le contenu HTML via WebSocket
+        webSocket.send("HTTP/1.1 200 OK\r\n" +
+                       "Content-Type: text/html\r\n" +
+                       "Connection: close\r\n" +
+                       "\r\n" +
+                       htmlContent.toString());
+    }
+
+
     /**
      * Handle the connection between the server and the client.
      * @param server The MinesweeperServer object.
@@ -80,7 +100,7 @@ public class MinesweeperServer
                 clientSocket.close();
                 return;
             }
-            //MinesweeperServer.maxThreads--;
+            MinesweeperServer.maxThreads--;
             System.out.println("Number of threads available: " + MinesweeperServer.maxThreads);
             // Create a new worker thread for the client to process the client's requests
             Worker worker = new Worker(clientSocket);
@@ -96,63 +116,55 @@ public class MinesweeperServer
      * Process the client's requests.
      * @param server The MinesweeperServer object.
      * @param clientSocket The client socket.
+     * @param webSocket The WebSocket object.
      * @throws IOException If an I/O error occurs.
      */
     public static void processClientRequests(Socket clientSocket) throws IOException
     {
+        
         Grid grid = new Grid(GRID_SIZE);
-        OutputStream outputServer = clientSocket.getOutputStream();
+        // Create a new WebSocket object for the client
+        WebSocket webSocket = new WebSocket(clientSocket);
+        //sendHtmlPage(webSocket);
+
         // Read the input from the client
-        BufferedReader reader = 
-            new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
         String receivedMessage = null;
-        try
-        {
-            // Set the timeout for the client socket
-            clientSocket.setSoTimeout(INACTIVE_TIME_OUT);
-    
-            // Loop until the client sends a "QUIT" command
-            while(true)
-            {    
-                String line = reader.readLine();
-                if(line != null)
+        // Set the timeout for the client socket
+        clientSocket.setSoTimeout(INACTIVE_TIME_OUT);
+
+        // Loop until the client sends a "QUIT" command
+        while(true)
+        {   
+            try
+            { 
+                // Receive the message from the client
+                receivedMessage = webSocket.receive();
+                if (receivedMessage == null || receivedMessage.isEmpty())
                 {
-                    line = line.trim();
-                    // If the client sends an empty line, process the command 
-                    //(following the protocol)
-                    if(line.isEmpty())
-                    {
-                        // If the client sends an empty line and the received message is not null,
-                        // process the command (following the protocol)
-                        if(receivedMessage != null)
-                        {
-                            processCommand
-                                (receivedMessage, grid, outputServer, clientSocket);
-                            receivedMessage = null;
-                        }
-                        // If the client sends an empty line and the received message is null,
-                        // the client does not follow the protocol
-                        else
-                        {
-                            handleWrongCommand(clientSocket, outputServer);
-                        }
-                        continue;
-                    }
+                    System.out.println("empty message");
+                    continue;
                 }
-                receivedMessage = line;
+
+                System.out.println("Received message: " + receivedMessage);
+                //processCommand
+                //    (receivedMessage, grid, outputServer, clientSocket);
+            }
+            catch (IOException e) 
+            {
+                // Vérifiez si l'exception est causée par un opcode non pris en charge
+                if (e.getMessage().contains("Unsupported opcode"))
+                {
+                    System.out.println("Unsupported opcode");
+                    continue;
+                }
+                else
+                {
+                    throw e; // Rejeter d'autres erreurs si nécessaire
+                }
             }
         }
-        catch(SocketTimeoutException e)
-        {
-            System.out.println("Client " + clientSocket.getPort() + " timed out.");
-            clientSocket.close();
-        }
-        catch(IOException e)
-        {
-            System.out.println("Client " + clientSocket.getPort() + " disconnected.");
-            clientSocket.close();
-        }
     }
+    
 
     /**
      * Process the command from the client.
@@ -191,6 +203,7 @@ public class MinesweeperServer
         else 
         {
             handleWrongCommand(clientSocket, outputServer);
+            System.out.println("Invalid input: "+receivedMessage);
         }
     }
 
@@ -444,5 +457,15 @@ public class MinesweeperServer
     private static boolean isCheatCommand(String input)
     {
         return input.equals(CHEAT_COMMAND);
+    }
+
+    public static int getMaxThreads()
+    {
+        return maxThreads;
+    }
+
+    public static void setMaxThreads(int maxThreads)
+    {
+        MinesweeperServer.maxThreads = maxThreads;
     }
 }

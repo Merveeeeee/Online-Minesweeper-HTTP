@@ -7,6 +7,7 @@ class Worker extends Thread
     Worker(Socket clientSocket)
     {
         this.clientSocket = clientSocket;
+        // Create a new WebSocket object for the client
     }
     
     @Override
@@ -19,6 +20,14 @@ class Worker extends Thread
         catch(IOException e)
         {
             e.printStackTrace();
+        }
+        finally
+        {
+            synchronized(MinesweeperServer.class)
+            {
+                MinesweeperServer.setMaxThreads(MinesweeperServer.getMaxThreads() + 1);
+                System.out.println("Thread released, max threads: " + MinesweeperServer.getMaxThreads());
+            }
         }
     }
 }

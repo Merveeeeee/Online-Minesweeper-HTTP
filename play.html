@@ -119,7 +119,6 @@
                     cell.dataset.col = j;
                     grid.appendChild(cell);
                     cells.push(cell);
-
                     // Add event listeners for clicks
                     cell.addEventListener("click", () => {
                         ws.send(`TRY ${i} ${j}`);
@@ -134,12 +133,16 @@
             // WebSocket event listeners
             ws.onopen = () => {
                 status.textContent = "Connected to the game server.";
+                ws.send("HTTP/1.1 200 OK\r\n" +
+                       "Content-Type: text/html\r\n" +
+                       "Connection: close\r\n" +
+                       "\r\n" +
+                       "Hello");
             };
-
 
             ws.onmessage = (event) => {
                 const data = JSON.parse(event.data); // Assume the server sends JSON
-                updateGrid(data.grid);
+                //updateGrid(data.grid);
             };
 
             ws.onerror = (error) => {
