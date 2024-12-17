@@ -1,7 +1,7 @@
 import java.io.*;
 import java.net.*;
 import java.security.*;
-import java.util.Base64;
+import java.util.*;
 
 public class MinesweeperServer
 {
@@ -13,6 +13,8 @@ public class MinesweeperServer
     private static final String CHEAT_COMMAND = "CHEAT";
     private static final short GRID_SIZE = 7;
     private static final int INACTIVE_TIME_OUT = 60000;
+
+    private static Map<String, Float> playersClassement = new HashMap<>();
 
     private static int maxThreads = 0;
 
@@ -172,9 +174,12 @@ public class MinesweeperServer
         Grid grid = new Grid(GRID_SIZE);
         // Set the timeout for the client socket
         clientSocket.setSoTimeout(INACTIVE_TIME_OUT);
+        // Timer must start here
+        //
         try
         {
             // Loop until the client sends a "QUIT" command
+            // The game started here
             while(true)
             {   
                 try
@@ -505,7 +510,6 @@ public class MinesweeperServer
     {
         OutputStream output = clientSocket.getOutputStream();
     
-        // === En-têtes HTTP ===
         String httpResponse = "HTTP/1.1 200 OK\r\n" +
         "Content-Type: text/html\r\n" +
         "Connection: close\r\n" +
@@ -712,8 +716,6 @@ public class MinesweeperServer
         "</body>\n" +
         "</html>";
 
-    
-        // === Envoyer la réponse HTTP ===
         output.write(httpResponse.getBytes());
         output.write(htmlContent.getBytes());
         output.flush();
