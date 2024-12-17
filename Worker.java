@@ -6,11 +6,12 @@ class Worker extends Thread
 {
     Socket clientSocket;
     String key;
-    Worker(Socket clientSocket, String key)
+    String session;
+    Worker(Socket clientSocket, String key, String session)
     {
         this.clientSocket = clientSocket;
         this.key = key;
-        // Create a new WebSocket object for the client
+        this.session = session;
     }
     
     @Override
@@ -18,7 +19,7 @@ class Worker extends Thread
     {
         try
         {
-            MinesweeperServer.processClientRequests(clientSocket, key);
+            MinesweeperServer.processClientRequests(clientSocket, key, session);
         }
         catch(IOException e)
         {

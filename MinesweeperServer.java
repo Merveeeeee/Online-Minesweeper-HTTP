@@ -2,6 +2,7 @@ import java.io.*;
 import java.net.*;
 import java.security.*;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.awt.image.*;
 
 import javax.imageio.ImageIO;
@@ -17,7 +18,10 @@ public class MinesweeperServer
     private static final short GRID_SIZE = 7;
     private static final int INACTIVE_TIME_OUT = 120000;
 
+    // Map to store the players' names and their scores (will be used for the leaderboard)
     private static Map<String, Float> playersClassement = new HashMap<>();
+    // Map to store the active sessions (cookie, timestamp)
+    private static Map<String, Long> activeSessions = new ConcurrentHashMap<>();
 
     private static int maxThreads = 3;
 
@@ -57,6 +61,30 @@ public class MinesweeperServer
         }
     }
 
+    private static void setSessionCookie(Socket clientSocket) throws IOException {
+        String sessionId = UUID.randomUUID().toString();
+        String cookieHeader = "Set-Cookie: SESSID=" + sessionId + "; Max-Age=600; Path=/; Domain=localhost; HttpOnly\r\n";
+    
+        OutputStream output = clientSocket.getOutputStream();
+        String httpResponse = "HTTP/1.1 200 OK\r\n" +
+                              "Content-Type: text/html\r\n" +
+                              cookieHeader + 
+                              "Connection: close\r\n\r\n";
+    
+        output.write(httpResponse.getBytes());
+        output.flush();
+    
+        // Sauvegarder la session sur le serveur (si nécessaire)
+        activeSessions.put(sessionId, System.currentTimeMillis());
+    }
+
+    private static boolean isSessionValid(String sessionId) {
+        if (sessionId == null) return false;
+        // Verify if the session is still active (is in the map and not expired)
+        return activeSessions.containsKey(sessionId) && 
+               (System.currentTimeMillis() - activeSessions.get(sessionId)) < 600000;
+    }
+
     /**
      * Handle the connection between the server and the client.
      * @param server The MinesweeperServer object.
@@ -92,9 +120,12 @@ public class MinesweeperServer
                 {
                     boolean isWebSocketRequest = false;
                     String clientKey = null;
+                    String sessionId = null;
+
                     // Read the headers from the client
                     while ((line = reader.readLine()) != null && !line.isEmpty())
                     {
+                        //System.out.println(line);
                         if (line.toLowerCase().contains("upgrade: websocket"))
                         {
                             isWebSocketRequest = true;
@@ -103,6 +134,20 @@ public class MinesweeperServer
                         else if (line.toLowerCase().contains("sec-websocket-key:"))
                         {
                             clientKey = line.split(":")[1].trim();
+                        }
+                        else if (line.toLowerCase().contains("cookie:"))
+                        {
+                            System.out.println("Cookie Header: " + line);
+                            // Extraire l'ID de session du cookie
+                            String[] cookies = line.split(":")[1].trim().split(";");
+                            for (String cookie : cookies)
+                            {
+                                if (cookie.trim().startsWith("SESSID="))
+                                {
+                                    sessionId = cookie.split("=")[1];
+                                    System.out.println("Session ID: " + sessionId);
+                                }
+                            }
                         }
                     }
                     // If websocket request, start the handshake
@@ -118,7 +163,7 @@ public class MinesweeperServer
                         MinesweeperServer.setMaxThreads(MinesweeperServer.getMaxThreads() - 1);
                         System.out.println("Number of threads available: " + MinesweeperServer.getMaxThreads());
                 
-                        Worker worker = new Worker(clientSocket, clientKey);
+                        Worker worker = new Worker(clientSocket, clientKey, sessionId);
                         worker.start();
                     }
                 }
@@ -137,7 +182,7 @@ public class MinesweeperServer
      * @param webSocket The WebSocket object.
      * @throws IOException If an I/O error occurs.
      */
-    public static void processClientRequests(Socket clientSocket, String key) throws IOException, NoSuchAlgorithmException
+    public static void processClientRequests(Socket clientSocket, String key, String session) throws IOException, NoSuchAlgorithmException
     {  
         // ============ Establish the handshake with the client ===============
         // DO NOT MODIFY THIS CODE
@@ -172,7 +217,7 @@ public class MinesweeperServer
         // Create a new WebSocket object for the client
         WebSocket webSocket = new WebSocket(clientSocket);
         // Send the images to the client
-        SendImage(webSocket);
+        SendImages(webSocket);
         // Read the input from the client
         String receivedMessage = null;
         // Create a new grid object
@@ -184,7 +229,7 @@ public class MinesweeperServer
         try
         {
             // Loop until the client sends a "QUIT" command
-            // The game started here
+            // The game starts here
             while(true)
             {   
                 try
@@ -213,7 +258,6 @@ public class MinesweeperServer
             System.out.println("Client " + clientSocket.getPort() + " disconnected.");
             clientSocket.close();
         }
-        
     }
 
     /**
@@ -221,7 +265,7 @@ public class MinesweeperServer
      * @param webSocket The WebSocket object.
      * @throws IOException If an I/O error occurs.
      */
-    private static void SendImage(WebSocket webSocket) throws IOException {
+    private static void SendImages(WebSocket webSocket) throws IOException {
         try {
             // Load Bomb Image
             File bombFile = new File("bomb.png");
@@ -544,6 +588,18 @@ public class MinesweeperServer
         MinesweeperServer.maxThreads = maxThreads;
     }
 
+    private static void redirectToPlayPage(Socket clientSocket) throws IOException
+    {
+        OutputStream output = clientSocket.getOutputStream();
+        String httpResponse = "HTTP/1.1 303 See Other\r\n" +
+                              "Location: /play.html\r\n" +
+                              "Connection: close\r\n" +
+                              "\r\n";
+        output.write(httpResponse.getBytes("UTF-8"));
+        output.flush();
+        clientSocket.close();
+    }
+
     private static void sendPlayHtmlPage(Socket clientSocket) throws IOException
     {
         OutputStream output = clientSocket.getOutputStream();
@@ -786,19 +842,4 @@ public class MinesweeperServer
         output.flush();
         output.close();
     }
-
-    private static void redirectToPlayPage(Socket clientSocket) throws IOException
-    {
-        OutputStream output = clientSocket.getOutputStream();
-        
-        // Réponse HTTP avec le code 303 et l'en-tête Location
-        String httpResponse = "HTTP/1.1 303 See Other\r\n" +
-                              "Location: /play.html\r\n" + // URL cible
-                              "Connection: close\r\n" +
-                              "\r\n";
-        output.write(httpResponse.getBytes("UTF-8"));
-        output.flush();
-        clientSocket.close();
-    }
-    
 }
