@@ -554,17 +554,13 @@ public class MinesweeperServer
         "\r\n";
 
         String script = "<script>\n" +
+        "    // Connect to the WebSocket server\n" +
         "    const ws = new WebSocket(\"ws://localhost:8013/ws\");\n" +
         "    let bombImage = \"\";\n" +
         "    let flagImage = \"\";\n" +
-        "    const grid = document.getElementById(\"grid\");\n" +
-        "    const status = document.getElementById(\"status\");\n" +
-        "    const cheatButton = document.getElementById(\"cheat\");\n" +
-        "    cheatButton.addEventListener(\"click\", () => {\n" +
-        "        ws.send(\"CHEAT\");\n" +
-        "    });\n" +
         "\n" +
-        "    ws.onopen = () => {\n" +
+        "    // WebSocket event listeners\n" +
+        "    ws.onopen = function(event) {\n" +
         "        status.textContent = \"Connected to the game server.\";\n" +
         "        console.log(\"Connected to the game server.\");\n" +
         "    };\n" +
@@ -572,24 +568,27 @@ public class MinesweeperServer
         "    ws.onmessage = (event) => {\n" +
         "        const gridData = event.data;\n" +
         "        console.log(\"Received:\", gridData);\n" +
-        "        if (gridData.includes(\"GAME LOST\")) {\n" +
-        "            updateGrid(gridData);\n" +
+        "        if(gridData.includes(\"GAME LOST\")) {\n" +
         "            status.textContent = \"GAME LOST\";\n" +
-        "        } else if (gridData.includes(\"GAME WON\")) {\n" +
         "            updateGrid(gridData);\n" +
+        "        } else if(gridData.includes(\"GAME WON\")) {\n" +
         "            status.textContent = \"GAME WON\";\n" +
-        "        } else if (gridData.includes(\"GAME NOT STARTED\")) {\n" +
+        "            updateGrid(gridData);\n" +
+        "        } else if(gridData.includes(\"GAME NOT STARTED\")) {\n" +
         "            status.textContent = \"GAME NOT STARTED\";\n" +
         "        } else if (gridData.includes(\"Bomb:\")) {\n" +
-        "            bombImage = gridData.replace(\"Bomb:\", \"\");\n" +
+        "            bombImage = \"data:image/png;base64,\" + gridData.replace(\"Bomb:\", \"\");\n" +
+        "            console.log(\"Bomb Image Data:\", bombImage);\n" +
         "        } else if (gridData.includes(\"Flag:\")) {\n" +
-        "            flagImage = gridData.replace(\"Flag:\", \"\");\n" +
+        "            flagImage = \"data:image/png;base64,\" + gridData.replace(\"Flag:\", \"\");\n" +
+        "            console.log(\"Flag Image Data:\", flagImage);\n" +
         "        } else {\n" +
         "            updateGrid(gridData);\n" +
         "        }\n" +
         "    };\n" +
         "\n" +
         "    ws.onerror = (error) => {\n" +
+        "        status.textContent = \"WebSocket error: \" + error.message;\n" +
         "        console.error(\"WebSocket error: \", error);\n" +
         "    };\n" +
         "\n" +
@@ -598,12 +597,23 @@ public class MinesweeperServer
         "        console.log(\"Disconnected from the server.\");\n" +
         "    };\n" +
         "\n" +
+        "    // Elements\n" +
+        "    const grid = document.getElementById(\"grid\");\n" +
+        "    const status = document.getElementById(\"status\");\n" +
+        "    const cheatButton = document.getElementById(\"cheat\");\n" +
+        "    cheatButton.addEventListener(\"click\", () => {\n" +
+        "        ws.send(\"CHEAT\");\n" +
+        "    });\n" +
+        "\n" +
+        "    // Initialize the grid\n" +
         "    const rows = 7, cols = 7;\n" +
         "    const cells = [];\n" +
         "    for (let i = 0; i < rows; i++) {\n" +
         "        for (let j = 0; j < cols; j++) {\n" +
         "            const cell = document.createElement(\"div\");\n" +
         "            cell.classList.add(\"cell\");\n" +
+        "            cell.dataset.row = i;\n" +
+        "            cell.dataset.col = j;\n" +
         "            grid.appendChild(cell);\n" +
         "            cells.push(cell);\n" +
         "            cell.addEventListener(\"click\", () => ws.send(`TRY ${i} ${j}`));\n" +
@@ -614,22 +624,43 @@ public class MinesweeperServer
         "        }\n" +
         "    }\n" +
         "\n" +
+        "    // Update the grid based on server data\n" +
         "    function updateGrid(gridData) {\n" +
         "        const rows = gridData.split(\"\\r\\n\").filter(line => line.trim() !== \"\");\n" +
         "        for (let i = 0; i < rows.length; i++) {\n" +
         "            for (let j = 0; j < rows[i].length; j++) {\n" +
         "                const cell = cells[i * cols + j];\n" +
         "                const state = rows[i][j];\n" +
-        "                cell.textContent = \"\";\n" +
+        "                cell.innerHTML = \"\";\n" +
         "                cell.className = \"cell\";\n" +
-        "                if (state === \"B\"){ cell.textContent = \"💣\"; cell.classList.add(\"revealed\");}\n" +
-        "                else if (state === \"F\"){ cell.textContent = \"🚩\"; cell.classList.add(\"revealed\");}\n" +
-        "                else if (!isNaN(state)){ cell.textContent = state; cell.classList.add(\"revealed\");}\n" +
+        "                \n" +
+        "                if (state === \"#\") {\n" +
+        "                    cell.textContent = \"\";\n" +
+        "                } else if (!isNaN(state) && state !== \" \") {\n" +
+        "                    cell.textContent = state;\n" +
+        "                    cell.classList.add(`number-${state}`);\n" +
+        "                    cell.classList.add(\"revealed\");\n" +
+        "                } else if (state === \"B\" && bombImage) {\n" +
+        "                    const img = document.createElement(\"img\");\n" +
+        "                    img.src = bombImage;\n" +
+        "                    img.alt = \"Bomb\";\n" +
+        "                    img.style.width = \"100%\";\n" +
+        "                    img.style.height = \"100%\";\n" +
+        "                    cell.appendChild(img);\n" +
+        "                    cell.classList.add(\"revealed\");\n" +
+        "                } else if (state === \"F\" && flagImage) {\n" +
+        "                    const img = document.createElement(\"img\");\n" +
+        "                    img.src = flagImage;\n" +
+        "                    img.alt = \"Flag\";\n" +
+        "                    img.style.width = \"100%\";\n" +
+        "                    img.style.height = \"100%\";\n" +
+        "                    cell.appendChild(img);\n" +
+        "                    cell.classList.add(\"flagged\");\n" +
+        "                }\n" +
         "            }\n" +
         "        }\n" +
         "    }\n" +
-        "</script>";
-               
+        "</script>";        
                               
         String style = "<style>\n" +
         "    body {\n" +

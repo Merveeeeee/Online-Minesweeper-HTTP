@@ -144,11 +144,11 @@
                 }
                 // Get the bomb and flag images
                 else if (gridData.includes("Bomb:")) {
-                    bombImage = gridData.replace("Bomb:", "");
+                    bombImage = "data:image/png;base64," + gridData.replace("Bomb:", "");
                     console.log("Bomb Image Data:", bombImage);
                 }
                 else if (gridData.includes("Flag:")) {
-                    flagImage = gridData.replace("Flag:", "");
+                    flagImage = "data:image/png;base64," + gridData.replace("Flag:", "");
                     console.log("Flag Image Data:", flagImage);
                 }       
                 // Update the grid based on server data (from TRY & FLAG)         
@@ -229,13 +229,25 @@
                         }
                         else if(state === "B")
                         {
+                            // Display the bomb image
+                            const img = document.createElement("img");
+                            img.src = bombImage; 
+                            img.alt = "Bomb";
+                            img.style.width = "100%";
+                            img.style.height = "100%";
+                            cell.appendChild(img);
                             cell.classList.add("revealed");
-                            cell.textContent = "💣";
                         }
                         else if (state === "F")
                         {
+                            // Display the flag image
+                            const img = document.createElement("img");
+                            img.src = flagImage; 
+                            img.alt = "Flag";
+                            img.style.width = "100%";
+                            img.style.height = "100%";
+                            cell.appendChild(img);
                             cell.classList.add("revealed");
-                            cell.textContent = "🚩";
                         }
                     }
                 }
