@@ -240,8 +240,7 @@ public class MinesweeperServer
             if(isOver)
             {
                 System.out.println("Game over for client " 
-                    + clientSocket.getPort() + " => disconnecting.");
-                clientSocket.close();
+                    + clientSocket.getPort());
             }
         } 
         else 
@@ -273,8 +272,7 @@ public class MinesweeperServer
     private static void handleCheatCommand(Grid grid, WebSocket webSocket)
         throws IOException
     {
-        //outputServer.write(grid.revealAllCells().getBytes());
-        //outputServer.flush();
+        webSocket.send(grid.revealAllCells());
     }
     
     /**
@@ -296,7 +294,6 @@ public class MinesweeperServer
             }
             grid.flagCell(getXCoordinate(input), getYCoordinate(input));
             webSocket.send(grid.convertGridToProtocol(false));
-            //outputServer.flush();
         }
         else
         {
@@ -324,14 +321,7 @@ public class MinesweeperServer
             }
             grid.revealCell(getXCoordinate(input), getYCoordinate(input));
             // Check if the game is over
-            if(grid.isWin() || grid.isLose())
-            {
-                isOver = true;
-            }
-            else
-            {
-                isOver = false;
-            }
+            isOver = grid.isWin() || grid.isLose();
 
             // Send the updated grid to the client (JSON format)
             webSocket.send(grid.convertGridToProtocol(false));
@@ -545,9 +535,8 @@ public class MinesweeperServer
         "            }\n" +
         "        }\n" +
         "    }\n" +
-        "}";
+        "}";        
                               
-
         String style = "<style>\n" +
         "    body {\n" +
         "        font-family: Arial, sans-serif;\n" +
@@ -640,7 +629,7 @@ public class MinesweeperServer
         "    .flagged {\n" +
         "        background-color: #ffa;\n" +
         "    }\n" +
-        "</style>";                                      
+        "</style>";                                            
 
         String htmlContent = "<!DOCTYPE html>\n" +
         "<html>\n" +
@@ -659,10 +648,17 @@ public class MinesweeperServer
         "    </div>\n" +
         "    <div id=\"grid\"></div>\n" +
         "    <p id=\"status\"></p>\n" +
+        "        <form method=\"POST\" action=\"\">\n" +
+        "            <input type=\"submit\" value=\"CHEAT\" id=\"cheat\"/>\n" +
+        "        </form>\n" +
         "    <script>\n" +
         "        const ws = new WebSocket(\"ws://localhost:8013/ws\");\n" +
         "        const grid = document.getElementById(\"grid\");\n" +
         "        const status = document.getElementById(\"status\");\n" +
+        "        const cheatButton = document.getElementById(\"cheat\");\n" +
+        "        cheatButton.addEventListener(\"click\", () => {\n" +
+        "                    ws.send(`CHEAT`);\n" +
+        "                });\n" +
         "        ws.onopen = function(event) {\n" +
         "            status.textContent = \"Connected to the game server.\";\n" +
         "            console.log(\"Connected to the game server.\");\n" +
@@ -671,7 +667,18 @@ public class MinesweeperServer
         "        ws.onmessage = (event) => {\n" +
         "            const gridData = event.data;\n" +
         "            console.log(\"Received:\", gridData);\n" +
-        "            updateGrid(gridData);\n" +
+        "            if (gridData === \"GAME OVER\") {\n" +
+        "                status.textContent = \"Game over!\\r\\n\\r\\n\";\n" +
+        "            }\n" +
+        "           else if (gridData === \"YOU WON\") {\n" +
+        "                status.textContent = \"You won!\\r\\n\\r\\n\";\n" +
+        "            }\n" +
+        "           else if (gridData === \"GAME NOT STARTED\\r\\n\\r\\n\") {\n" +
+        "                status.textContent = \"Game not started.\";\n" +
+        "            }\n" +
+        "           else {\n" +
+        "               updateGrid(gridData);\n" +
+        "           }\n" +
         "        };\n" +
         "        ws.onerror = (error) => {\n" +
         "            status.textContent = \"WebSocket error: \" + error.message;\n" +

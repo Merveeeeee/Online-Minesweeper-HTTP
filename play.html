@@ -107,6 +107,9 @@
         </div>
         <div id="grid"></div>
         <p id="status"></p>
+        <form method="POST" action="">
+            <input type="submit" value="CHEAT\r\n\r\n" id="cheat"/>
+        </form>
 
         <script>
             // Connect to the WebSocket server
@@ -123,7 +126,22 @@
                 // Parse the JSON message received on the WebSocket
                 const gridData = event.data;
                 console.log("Received:", gridData);
-                updateGrid(gridData);
+                if(gridData === "GAME OVER")
+                {
+                    status.textContent = "GAME LOST";
+                }
+                else if(gridData === "GAME LOST")
+                {
+                    status.textContent = "GAME WON";
+                }
+                else if(gridData === "GAME NOT STARTED")
+                {
+                    status.textContent = "GAME NOT STARTED";
+                }
+                else
+                {
+                    updateGrid(gridData);
+                }
                 
             };
 
@@ -140,6 +158,11 @@
             // Elements
             const grid = document.getElementById("grid");
             const status = document.getElementById("status");
+            const cheatButton = document.getElementById("cheat");
+            cheatButton.addEventListener("click", () =>
+            {
+                ws.send("CHEAT");
+            });
 
             // Initialize the grid
             const rows = 7, cols = 7;
