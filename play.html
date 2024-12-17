@@ -114,29 +114,44 @@
         <script>
             // Connect to the WebSocket server
             const ws = new WebSocket("ws://localhost:8013/ws");
+            const bombImage = "";
+            const flagImage = "";
 
             // WebSocket event listeners
             ws.onopen = function(event) {
                 status.textContent = "Connected to the game server.";
                 console.log("Connected to the game server.");
-                ws.send("Hello");
             };
 
             ws.onmessage = (event) => {
                 const gridData = event.data;
                 console.log("Received:", gridData);
+                // If the game is lost or won, display the message
                 if(gridData.includes("GAME LOST"))
                 {
                     status.textContent = "GAME LOST";
+                    updateGrid(gridData);
                 }
                 else if(gridData.includes("GAME WON"))
                 {
                     status.textContent = "GAME WON";
+                    updateGrid(gridData);
                 }
+                // If the player pressed CHEAT button but the game is not started, display the message
                 else if(gridData.includes("GAME NOT STARTED"))
                 {
                     status.textContent = "GAME NOT STARTED";
                 }
+                // Get the bomb and flag images
+                else if (gridData.includes("Bomb:")) {
+                    bombImage = gridData.replace("Bomb:", "");
+                    console.log("Bomb Image Data:", bombImage);
+                }
+                else if (gridData.includes("Flag:")) {
+                    flagImage = gridData.replace("Flag:", "");
+                    console.log("Flag Image Data:", flagImage);
+                }       
+                // Update the grid based on server data (from TRY & FLAG)         
                 else
                 {
                     updateGrid(gridData);

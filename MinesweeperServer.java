@@ -2,6 +2,9 @@ import java.io.*;
 import java.net.*;
 import java.security.*;
 import java.util.*;
+import java.awt.image.*;
+
+import javax.imageio.ImageIO;
 
 public class MinesweeperServer
 {
@@ -12,11 +15,11 @@ public class MinesweeperServer
     private static final String FLAG_COMMAND = "FLAG";
     private static final String CHEAT_COMMAND = "CHEAT";
     private static final short GRID_SIZE = 7;
-    private static final int INACTIVE_TIME_OUT = 60000;
+    private static final int INACTIVE_TIME_OUT = 120000;
 
     private static Map<String, Float> playersClassement = new HashMap<>();
 
-    private static int maxThreads = 0;
+    private static int maxThreads = 3;
 
     /**
      * Main method for the MinesweeperServer class.
@@ -81,7 +84,7 @@ public class MinesweeperServer
                 else if(line != null && line.startsWith("GET /play.html HTTP/1.1"))
                 {
                     System.out.println("Sending dynamic play.html page to client " + clientSocket.getPort());
-                    sendInitialHtmlPage(clientSocket);
+                    sendPlayHtmlPage(clientSocket);
                     return;
                 }
                 // Check if the client is using a WebSocket
@@ -168,6 +171,8 @@ public class MinesweeperServer
     
         // Create a new WebSocket object for the client
         WebSocket webSocket = new WebSocket(clientSocket);
+        // Send the images to the client
+        SendImage(webSocket);
         // Read the input from the client
         String receivedMessage = null;
         // Create a new grid object
@@ -210,6 +215,39 @@ public class MinesweeperServer
         }
         
     }
+
+    /**
+     * Send the images to the client.
+     * @param webSocket The WebSocket object.
+     * @throws IOException If an I/O error occurs.
+     */
+    private static void SendImage(WebSocket webSocket) throws IOException {
+        try {
+            // Load Bomb Image
+            File bombFile = new File("bomb.png");
+            if (bombFile.exists()) {
+                final ByteArrayOutputStream os = new ByteArrayOutputStream();
+                RenderedImage image = ImageIO.read(bombFile);
+                ImageIO.write(image, "png", os);
+                webSocket.send("Bomb:" + Base64.getEncoder().encodeToString(os.toByteArray()));
+            } else {
+                System.out.println("Bomb image not found.");
+            }
+    
+            // Load Flag Image
+            File flagFile = new File("flag.png");
+            if (flagFile.exists()) {
+                final ByteArrayOutputStream os = new ByteArrayOutputStream();
+                RenderedImage image = ImageIO.read(flagFile);
+                ImageIO.write(image, "png", os);
+                webSocket.send("Flag:" + Base64.getEncoder().encodeToString(os.toByteArray()));
+            } else {
+                System.out.println("Flag image not found.");
+            }
+        } catch (IOException e) {
+            System.err.println("Error reading or sending images: " + e.getMessage());
+        }
+    }    
     
     /**
      * Process the command from the client.
@@ -506,7 +544,7 @@ public class MinesweeperServer
         MinesweeperServer.maxThreads = maxThreads;
     }
 
-    private static void sendInitialHtmlPage(Socket clientSocket) throws IOException
+    private static void sendPlayHtmlPage(Socket clientSocket) throws IOException
     {
         OutputStream output = clientSocket.getOutputStream();
     
@@ -515,31 +553,83 @@ public class MinesweeperServer
         "Connection: close\r\n" +
         "\r\n";
 
-        String updateGridFunction = "function updateGrid(gridData) {\n" +
-        "    const rows = gridData.split(\"\\r\\n\").filter(line => line.trim() !== \"\");\n" +
-        "    for (let i = 0; i < rows.length; i++) {\n" +
-        "        for (let j = 0; j < rows[i].length; j++) {\n" +
-        "            const cell = cells[i * cols + j];\n" +
-        "            const state = rows[i][j];\n" +
-        "            cell.textContent = \"\";\n" +
-        "            cell.className = \"cell\";\n" +
+        String script = "<script>\n" +
+        "    const ws = new WebSocket(\"ws://localhost:8013/ws\");\n" +
+        "    let bombImage = \"\";\n" +
+        "    let flagImage = \"\";\n" +
+        "    const grid = document.getElementById(\"grid\");\n" +
+        "    const status = document.getElementById(\"status\");\n" +
+        "    const cheatButton = document.getElementById(\"cheat\");\n" +
+        "    cheatButton.addEventListener(\"click\", () => {\n" +
+        "        ws.send(\"CHEAT\");\n" +
+        "    });\n" +
         "\n" +
-        "            if (state === \"#\") {\n" +
+        "    ws.onopen = () => {\n" +
+        "        status.textContent = \"Connected to the game server.\";\n" +
+        "        console.log(\"Connected to the game server.\");\n" +
+        "    };\n" +
+        "\n" +
+        "    ws.onmessage = (event) => {\n" +
+        "        const gridData = event.data;\n" +
+        "        console.log(\"Received:\", gridData);\n" +
+        "        if (gridData.includes(\"GAME LOST\")) {\n" +
+        "            updateGrid(gridData);\n" +
+        "            status.textContent = \"GAME LOST\";\n" +
+        "        } else if (gridData.includes(\"GAME WON\")) {\n" +
+        "            updateGrid(gridData);\n" +
+        "            status.textContent = \"GAME WON\";\n" +
+        "        } else if (gridData.includes(\"GAME NOT STARTED\")) {\n" +
+        "            status.textContent = \"GAME NOT STARTED\";\n" +
+        "        } else if (gridData.includes(\"Bomb:\")) {\n" +
+        "            bombImage = gridData.replace(\"Bomb:\", \"\");\n" +
+        "        } else if (gridData.includes(\"Flag:\")) {\n" +
+        "            flagImage = gridData.replace(\"Flag:\", \"\");\n" +
+        "        } else {\n" +
+        "            updateGrid(gridData);\n" +
+        "        }\n" +
+        "    };\n" +
+        "\n" +
+        "    ws.onerror = (error) => {\n" +
+        "        console.error(\"WebSocket error: \", error);\n" +
+        "    };\n" +
+        "\n" +
+        "    ws.onclose = () => {\n" +
+        "        status.textContent = \"Disconnected from the server.\";\n" +
+        "        console.log(\"Disconnected from the server.\");\n" +
+        "    };\n" +
+        "\n" +
+        "    const rows = 7, cols = 7;\n" +
+        "    const cells = [];\n" +
+        "    for (let i = 0; i < rows; i++) {\n" +
+        "        for (let j = 0; j < cols; j++) {\n" +
+        "            const cell = document.createElement(\"div\");\n" +
+        "            cell.classList.add(\"cell\");\n" +
+        "            grid.appendChild(cell);\n" +
+        "            cells.push(cell);\n" +
+        "            cell.addEventListener(\"click\", () => ws.send(`TRY ${i} ${j}`));\n" +
+        "            cell.addEventListener(\"contextmenu\", (e) => {\n" +
+        "                e.preventDefault();\n" +
+        "                ws.send(`FLAG ${i} ${j}`);\n" +
+        "            });\n" +
+        "        }\n" +
+        "    }\n" +
+        "\n" +
+        "    function updateGrid(gridData) {\n" +
+        "        const rows = gridData.split(\"\\r\\n\").filter(line => line.trim() !== \"\");\n" +
+        "        for (let i = 0; i < rows.length; i++) {\n" +
+        "            for (let j = 0; j < rows[i].length; j++) {\n" +
+        "                const cell = cells[i * cols + j];\n" +
+        "                const state = rows[i][j];\n" +
         "                cell.textContent = \"\";\n" +
-        "            } else if (!isNaN(state) && state !== \" \") {\n" +
-        "                cell.textContent = state;\n" +
-        "                cell.classList.add(`number-${state}`);\n" +
-        "                cell.classList.add(\"revealed\");\n" +
-        "            } else if (state === \"B\") {\n" +
-        "                cell.classList.add(\"revealed\");\n" +
-        "                cell.textContent = \"💣\";\n" +
-        "            } else if (state === \"F\") {\n" +
-        "                cell.classList.add(\"revealed\");\n" +
-        "                cell.textContent = \"🚩\";\n" +
+        "                cell.className = \"cell\";\n" +
+        "                if (state === \"B\"){ cell.textContent = \"💣\"; cell.classList.add(\"revealed\");}\n" +
+        "                else if (state === \"F\"){ cell.textContent = \"🚩\"; cell.classList.add(\"revealed\");}\n" +
+        "                else if (!isNaN(state)){ cell.textContent = state; cell.classList.add(\"revealed\");}\n" +
         "            }\n" +
         "        }\n" +
         "    }\n" +
-        "}";        
+        "</script>";
+               
                               
         String style = "<style>\n" +
         "    body {\n" +
@@ -652,69 +742,13 @@ public class MinesweeperServer
         "    </div>\n" +
         "    <div id=\"grid\"></div>\n" +
         "    <p id=\"status\"></p>\n" +
-        "        <form method=\"POST\" action=\"\">\n" +
-        "            <input type=\"submit\" value=\"CHEAT\" id=\"cheat\"/>\n" +
-        "        </form>\n" +
-        "    <script>\n" +
-        "        const ws = new WebSocket(\"ws://localhost:8013/ws\");\n" +
-        "        const grid = document.getElementById(\"grid\");\n" +
-        "        const status = document.getElementById(\"status\");\n" +
-        "        const cheatButton = document.getElementById(\"cheat\");\n" +
-        "        cheatButton.addEventListener(\"click\", () => {\n" +
-        "                    ws.send(`CHEAT`);\n" +
-        "                });\n" +
-        "        ws.onopen = function(event) {\n" +
-        "            status.textContent = \"Connected to the game server.\";\n" +
-        "            console.log(\"Connected to the game server.\");\n" +
-        "            ws.send(\"Hello\");\n" +
-        "        };\n" +
-        "        ws.onmessage = (event) => {\n" +
-        "            const gridData = event.data;\n" +
-        "            console.log(\"Received:\", gridData);\n" +
-        "            if (gridData.includes(\"GAME LOST\")) {\n" +
-        "                status.textContent = \"You lost!\";\n" +
-        "            }\n" +
-        "           else if (gridData.includes(\"YOU WON\")) {\n" +
-        "                status.textContent = \"You won!\";\n" +
-        "            }\n" +
-        "           else if (gridData.includes(\"GAME NOT STARTED\\r\\n\\r\\n\")) {\n" +
-        "                status.textContent = \"Game not started.\";\n" +
-        "            }\n" +
-        "           else {\n" +
-        "               updateGrid(gridData);\n" +
-        "           }\n" +
-        "        };\n" +
-        "        ws.onerror = (error) => {\n" +
-        "            status.textContent = \"WebSocket error: \" + error.message;\n" +
-        "            console.error(\"WebSocket error: \", error);\n" +
-        "        };\n" +
-        "        ws.onclose = () => {\n" +
-        "            status.textContent = \"Disconnected from the server.\";\n" +
-        "            console.log(\"Disconnected from the server.\");\n" +
-        "        };\n" +
-        "        const rows = 7, cols = 7;\n" +
-        "        const cells = [];\n" +
-        "        for (let i = 0; i < rows; i++) {\n" +
-        "            for (let j = 0; j < cols; j++) {\n" +
-        "                const cell = document.createElement(\"div\");\n" +
-        "                cell.classList.add(\"cell\");\n" +
-        "                cell.dataset.row = i;\n" +
-        "                cell.dataset.col = j;\n" +
-        "                grid.appendChild(cell);\n" +
-        "                cells.push(cell);\n" +
-        "                cell.addEventListener(\"click\", () => {\n" +
-        "                    ws.send(`TRY ${i} ${j}`);\n" +
-        "                });\n" +
-        "                cell.addEventListener(\"contextmenu\", (e) => {\n" +
-        "                    e.preventDefault();\n" +
-        "                    ws.send(`FLAG ${i} ${j}`);\n" +
-        "                });\n" +
-        "            }\n" +
-        "        }\n" +
-                updateGridFunction + "\n" +
-        "    </script>\n" +
+        "    <form method=\"POST\" action=\"\">\n" +
+        "        <input type=\"submit\" value=\"CHEAT\" id=\"cheat\"/>\n" +
+        "    </form>\n" +
+            script + "\n" +
         "</body>\n" +
         "</html>";
+        
 
         output.write(httpResponse.getBytes());
         output.write(htmlContent.getBytes());
