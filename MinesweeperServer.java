@@ -671,13 +671,13 @@ public class MinesweeperServer
         "        ws.onmessage = (event) => {\n" +
         "            const gridData = event.data;\n" +
         "            console.log(\"Received:\", gridData);\n" +
-        "            if (gridData === \"GAME OVER\") {\n" +
-        "                status.textContent = \"Game over!\\r\\n\\r\\n\";\n" +
+        "            if (gridData.includes(\"GAME LOST\")) {\n" +
+        "                status.textContent = \"You lost!\";\n" +
         "            }\n" +
-        "           else if (gridData === \"YOU WON\") {\n" +
-        "                status.textContent = \"You won!\\r\\n\\r\\n\";\n" +
+        "           else if (gridData.includes(\"YOU WON\")) {\n" +
+        "                status.textContent = \"You won!\";\n" +
         "            }\n" +
-        "           else if (gridData === \"GAME NOT STARTED\\r\\n\\r\\n\") {\n" +
+        "           else if (gridData.includes(\"GAME NOT STARTED\\r\\n\\r\\n\")) {\n" +
         "                status.textContent = \"Game not started.\";\n" +
         "            }\n" +
         "           else {\n" +

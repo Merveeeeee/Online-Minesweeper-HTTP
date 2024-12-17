@@ -123,18 +123,17 @@
             };
 
             ws.onmessage = (event) => {
-                // Parse the JSON message received on the WebSocket
                 const gridData = event.data;
                 console.log("Received:", gridData);
-                if(gridData === "GAME OVER")
+                if(gridData.includes("GAME LOST"))
                 {
                     status.textContent = "GAME LOST";
                 }
-                else if(gridData === "GAME LOST")
+                else if(gridData.includes("GAME WON"))
                 {
                     status.textContent = "GAME WON";
                 }
-                else if(gridData === "GAME NOT STARTED")
+                else if(gridData.includes("GAME NOT STARTED"))
                 {
                     status.textContent = "GAME NOT STARTED";
                 }
