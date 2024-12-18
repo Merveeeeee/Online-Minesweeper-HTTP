@@ -105,6 +105,12 @@ public class MinesweeperServer
                     redirectToPlayPage(clientSocket);
                     return;
                 }
+                else if (line != null && line.startsWith("POST /leaderboard HTTP/1.1")) 
+                {
+                    System.out.println("Leaderboard submission detected.");
+                    redirectToLeaderboardPage(clientSocket);
+                    return;
+                }
                 // Check if the client is using a WebSocket
                 else
                 {
@@ -625,6 +631,18 @@ public class MinesweeperServer
         clientSocket.close();
     }
 
+    private static void redirectToLeaderboardPage(Socket clientSocket) throws IOException
+    {
+        OutputStream output = clientSocket.getOutputStream();
+        String httpResponse = "HTTP/1.1 303 See Other\r\n" +
+                              "Location: /leaderboard.html\r\n" +
+                              "Connection: close\r\n" +
+                              "\r\n";
+        output.write(httpResponse.getBytes("UTF-8"));
+        output.flush();
+        clientSocket.close();
+    }
+
     /**
      * Upgrade the client connection to a WebSocket connection. The session cookie is returned.
      * @param clientSocket The client socket.
@@ -1104,6 +1122,9 @@ public class MinesweeperServer
         "    <p id=\"status\"></p>\n" +
         "    <form method=\"POST\" action=\"\">\n" +
         "        <input type=\"submit\" value=\"CHEAT\" id=\"cheat\"/>\n" +
+        "    </form>\n" +
+        "    <form method=\"POST\" action=\"/leaderboard\">\n" +
+        "        <input type=\"submit\" value=\"LEADERBOARD\"\"/>\n" +
         "    </form>\n" +
             script + "\n" +
         "</body>\n" +
