@@ -19,7 +19,7 @@ public class MinesweeperServer
     private static final int INACTIVE_TIME_OUT = 600000;
 
     // Map to store the players' names and their scores (will be used for the leaderboard)
-    private static Map<String, Float> playersClassement = new HashMap<>();
+    private static Map<String, Long> playersClassement = new HashMap<>();
     // Map to store the active sessions (cookie ID, session info)
     private static Map<String, SessionInfo> activeSessions = new ConcurrentHashMap<>();
 
@@ -190,6 +190,8 @@ public class MinesweeperServer
         Grid grid = activeSessions.get(session).getCurrentGame();
         webSocket.send(grid.convertGridToProtocol(false));
 
+        Long initialTimer = System.currentTimeMillis();
+
         // Timer must start here
         try
         {
@@ -212,6 +214,13 @@ public class MinesweeperServer
                     // Check if the game is over, if so, remove the session
                     if(grid.isWin() || grid.isLose())
                     {
+                        Long endTimer = System.currentTimeMillis() - initialTimer;
+                        if(grid.isWin()|| grid.isLose())
+                        {
+                            String playerName = activeSessions.get(session).getPlayerName();
+                            playersClassement.put(playerName, endTimer);
+                            System.out.println(playerName + " finished in " + endTimer);
+                        }
                         activeSessions.remove(session);
                         System.out.println("Game over for client " 
                             + clientSocket.getPort() + " session removed.");
