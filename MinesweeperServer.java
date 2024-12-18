@@ -3,6 +3,7 @@ import java.net.*;
 import java.security.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 import java.awt.image.*;
 
 import javax.imageio.ImageIO;
@@ -89,6 +90,12 @@ public class MinesweeperServer
                 {
                     System.out.println("Sending dynamic play.html page to client " + clientSocket.getPort());
                     sendPlayHtmlPage(clientSocket);
+                    return;
+                }
+                else if(line != null && line.startsWith("GET /leaderboard.html HTTP/1.1"))
+                {
+                    System.out.println("Sending dynamic leaderboard.html page to client " + clientSocket.getPort());
+                    sendLeaderboardHtmlPage(clientSocket);
                     return;
                 }
                 else if (line != null && line.startsWith("POST /submitName HTTP/1.1")) 
@@ -189,6 +196,8 @@ public class MinesweeperServer
         // Get the grid object from the active sessions map (should be initialized in the handshake)
         Grid grid = activeSessions.get(session).getCurrentGame();
         webSocket.send(grid.convertGridToProtocol(false));
+        // Send the leaderboard to the client (should be read for leaderboard.html)
+        webSocket.send(generateJsonClassement(playersClassement));
 
         Long initialTimer = System.currentTimeMillis();
 
@@ -240,6 +249,38 @@ public class MinesweeperServer
             System.out.println("Client " + clientSocket.getPort() + " disconnected.");
             clientSocket.close();
         }
+    }
+
+    private static String generateJsonClassement(Map<String, Long> playersClassement) 
+    {
+        // First, we need to sort the playersClassement map by value
+        Map<String, Long> sortedPlayersClassement = playersClassement.entrySet()
+            .stream()
+            .sorted(Map.Entry.comparingByValue())
+            .collect(Collectors.toMap(
+                Map.Entry::getKey,
+                Map.Entry::getValue,
+                (e1, e2) -> e1,
+                LinkedHashMap::new
+            ));
+    
+        StringBuilder json = new StringBuilder();
+        json.append("{\n");
+        json.append("  \"LEADERBOARD\": [\n");
+        for (Map.Entry<String, Long> entry : sortedPlayersClassement.entrySet()) {
+            json.append("    {\n");
+            json.append("      \"name\": \"").append(entry.getKey()).append("\",\n");
+            json.append("      \"time\": ").append(entry.getValue()).append("\n");
+            json.append("    },\n");
+        }
+        // Remove the last comma
+        if (!sortedPlayersClassement.isEmpty()) {
+            json.setLength(json.length() - 2);
+            json.append("\n");
+        }
+        json.append("  ]\n");
+        json.append("}\n");
+        return json.toString();
     }
 
     /**
@@ -703,7 +744,8 @@ public class MinesweeperServer
     
         // Parse the request body to get the player name
         String[] params = requestBody.split("&");
-        for (String param : params) {
+        for (String param : params)
+        {
             if (param.startsWith("playerName="))
             {
                 playerName = URLDecoder.decode(param.split("=")[1], "UTF-8");
@@ -725,7 +767,109 @@ public class MinesweeperServer
         return playerName;
     }
     
+    private static void sendLeaderboardHtmlPage(Socket clientSocket) throws IOException
+    {
+        OutputStream output = clientSocket.getOutputStream();
     
+        String httpResponse = "HTTP/1.1 200 OK\r\n" +
+        "Content-Type: text/html\r\n" +
+        "Transfer-Encoding: chunked\r\n" +
+        "Connection: close\r\n" +
+        "\r\n";
+        output.write(httpResponse.getBytes());
+        output.flush();
+
+        String html = "<!DOCTYPE html>\n"
+        + "<html lang=\"en\">\n"
+        + "<head>\n"
+        + "    <meta charset=\"UTF-8\">\n"
+        + "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n"
+        + "    <title>Leaderboard</title>\n"
+        + "    <style>\n"
+        + "        body {\n"
+        + "            font-family: Arial, sans-serif;\n"
+        + "            display: flex;\n"
+        + "            justify-content: center;\n"
+        + "            align-items: center;\n"
+        + "            flex-direction: column;\n"
+        + "            height: 100vh;\n"
+        + "            margin: 0;\n"
+        + "            background-color: #f4f4f4;\n"
+        + "        }\n"
+        + "        table {\n"
+        + "            border-collapse: collapse;\n"
+        + "            width: 60%;\n"
+        + "            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);\n"
+        + "            background-color: #fff;\n"
+        + "        }\n"
+        + "        th, td {\n"
+        + "            border: 1px solid #ddd;\n"
+        + "            text-align: center;\n"
+        + "            padding: 10px;\n"
+        + "        }\n"
+        + "        th {\n"
+        + "            background-color: #333;\n"
+        + "            color: white;\n"
+        + "        }\n"
+        + "        tr:nth-child(even) {\n"
+        + "            background-color: #f9f9f9;\n"
+        + "        }\n"
+        + "        tr:hover {\n"
+        + "            background-color: #f1f1f1;\n"
+        + "        }\n"
+        + "    </style>\n"
+        + "</head>\n"
+        + "<body>\n"
+        + "    <h1>Leaderboard</h1>\n"
+        + "    <table>\n"
+        + "        <thead>\n"
+        + "            <tr>\n"
+        + "                <th>Rank</th>\n"
+        + "                <th>Name</th>\n"
+        + "                <th>Score</th>\n"
+        + "            </tr>\n"
+        + "        </thead>\n"
+        + "        <tbody>\n"
+        + "        </tbody>\n"
+        + "    </table>\n"
+        + "    <script>\n"
+        + "        // Connect to the WebSocket server\n"
+        + "        const ws = new WebSocket(\"ws://localhost:8013/ws\");\n"
+        + "\n"
+        + "        // WebSocket event listeners\n"
+        + "        ws.onopen = function(event) {\n"
+        + "            status.textContent = \"Connected to the game server.\";\n"
+        + "            console.log(\"Connected to the game server.\");\n"
+        + "        };\n"
+        + "\n"
+        + "        ws.onmessage = (event) => {\n"
+        + "            const data = event.data;\n"
+        + "            if (data.includes(\"LEADERBOARD\")) {\n"
+        + "                // Parse the JSON data\n"
+        + "                const jsonData = JSON.parse(data);\n"
+        + "                const leaderboard = jsonData.LEADERBOARD;\n"
+        + "\n"
+        + "                const tbody = document.querySelector(\"tbody\");\n"
+        + "                tbody.innerHTML = \"\";\n"
+        + "                leaderboard.forEach((player, index) => {\n"
+        + "                    const tr = document.createElement(\"tr\");\n"
+        + "                    tr.innerHTML = `\n"
+        + "                        <td>${index + 1}</td>\n"
+        + "                        <td>${player.name}</td>\n"
+        + "                        <td>${player.time}</td>\n"
+        + "                    `;\n"
+        + "                    tbody.appendChild(tr);\n"
+        + "                });\n"
+        + "            }\n"
+        + "        };"
+        + "    </script>\n"
+        + "</body>\n"
+        + "</html>\n";
+    
+        sendChunkedResponse(output, html);
+        sendFinalChunk(output);
+        output.close();
+    }
 
     private static void sendPlayHtmlPage(Socket clientSocket) throws IOException
     {

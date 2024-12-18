@@ -49,37 +49,40 @@
             </tr>
         </thead>
         <tbody>
-            <tr>
-                <td>1</td>
-                <td>Alice</td>
-                <td>120</td>
-            </tr>
-            <tr>
-                <td>1</td>
-                <td>Alice</td>
-                <td>120</td>
-            </tr>
-            <tr>
-                <td>1</td>
-                <td>Alice</td>
-                <td>120</td>
-            </tr>
-            <tr>
-                <td>1</td>
-                <td>Alice</td>
-                <td>120</td>
-            </tr>
-            <tr>
-                <td>2</td>
-                <td>Bob</td>
-                <td>95</td>
-            </tr>
-            <tr>
-                <td>3</td>
-                <td>Charlie</td>
-                <td>150</td>
-            </tr>
+            
         </tbody>
     </table>
+    <script>
+        // Connect to the WebSocket server
+        const ws = new WebSocket("ws://localhost:8013/ws");
+
+        // WebSocket event listeners
+        ws.onopen = function(event) {
+            status.textContent = "Connected to the game server.";
+            console.log("Connected to the game server.");
+        };
+
+        ws.onmessage = (event) => {
+            const data = event.data;
+            if (data.includes("LEADERBOARD")) {
+                // Parse the JSON data
+                const jsonData = JSON.parse(data);
+                const leaderboard = jsonData.LEADERBOARD;
+        
+                const tbody = document.querySelector("tbody");
+                tbody.innerHTML = "";
+                leaderboard.forEach((player, index) => {
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td>${index + 1}</td>
+                        <td>${player.name}</td>
+                        <td>${player.time}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        };
+        
+    </script>
 </body>
 </html>
