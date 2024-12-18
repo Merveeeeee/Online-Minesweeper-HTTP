@@ -659,8 +659,11 @@ public class MinesweeperServer
     
         String httpResponse = "HTTP/1.1 200 OK\r\n" +
         "Content-Type: text/html\r\n" +
+        "Transfer-Encoding: chunked\r\n" +
         "Connection: close\r\n" +
         "\r\n";
+        output.write(httpResponse.getBytes());
+        output.flush();
 
         String script = "<script>\n" +
         "    // Connect to the WebSocket server\n" +
@@ -889,10 +892,39 @@ public class MinesweeperServer
         "</body>\n" +
         "</html>";
         
-
-        output.write(httpResponse.getBytes());
-        output.write(htmlContent.getBytes());
-        output.flush();
+        sendChunkedResponse(output, htmlContent);
+        sendFinalChunk(output);
         output.close();
+    }
+
+    /**
+     * Send a chunked response to the client.
+     * @param output The output stream to the client.
+     * @param content The content to send.
+     * @throws IOException
+     */
+    private static void sendChunkedResponse(OutputStream output, String content) throws IOException {
+        int maxChunkSize = 128; // Maximum chunk size in bytes
+        byte[] contentBytes = content.getBytes();
+        int contentLength = contentBytes.length;
+    
+        for (int i = 0; i < contentLength; i += maxChunkSize) {
+            int chunkSize = Math.min(maxChunkSize, contentLength - i);
+            String chunkSizeHex = Integer.toHexString(chunkSize) + "\r\n";
+            output.write(chunkSizeHex.getBytes());
+            output.write(contentBytes, i, chunkSize);
+            output.write("\r\n".getBytes());
+            output.flush();
+        }
+    }
+    
+    /**
+     * Send the final chunk to the client.
+     * @param output The output stream to the client.
+     * @throws IOException
+     */
+    private static void sendFinalChunk(OutputStream output) throws IOException {
+        output.write("0\r\n\r\n".getBytes());
+        output.flush();
     }
 }
