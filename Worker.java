@@ -30,6 +30,7 @@ class Worker extends Thread
         }
         finally
         {
+            // Decrement the number of threads when the thread is done
             synchronized(MinesweeperServer.class)
             {
                 MinesweeperServer.setMaxThreads(MinesweeperServer.getMaxThreads() + 1);

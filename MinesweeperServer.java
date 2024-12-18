@@ -16,12 +16,12 @@ public class MinesweeperServer
     private static final String FLAG_COMMAND = "FLAG";
     private static final String CHEAT_COMMAND = "CHEAT";
     private static final short GRID_SIZE = 7;
-    private static final int INACTIVE_TIME_OUT = 120000;
+    private static final int INACTIVE_TIME_OUT = 600000;
 
     // Map to store the players' names and their scores (will be used for the leaderboard)
     private static Map<String, Float> playersClassement = new HashMap<>();
-    // Map to store the active sessions (cookie, timestamp)
-    private static Map<String, Long> activeSessions = new ConcurrentHashMap<>();
+    // Map to store the active sessions (cookie ID, session info)
+    private static Map<String, SessionInfo> activeSessions = new ConcurrentHashMap<>();
 
     private static int maxThreads = 3;
 
@@ -59,30 +59,6 @@ public class MinesweeperServer
         {
             e.printStackTrace();
         }
-    }
-
-    private static void setSessionCookie(Socket clientSocket) throws IOException {
-        String sessionId = UUID.randomUUID().toString();
-        String cookieHeader = "Set-Cookie: SESSID=" + sessionId + "; Max-Age=600; Path=/; Domain=localhost; HttpOnly\r\n";
-    
-        OutputStream output = clientSocket.getOutputStream();
-        String httpResponse = "HTTP/1.1 200 OK\r\n" +
-                              "Content-Type: text/html\r\n" +
-                              cookieHeader + 
-                              "Connection: close\r\n\r\n";
-    
-        output.write(httpResponse.getBytes());
-        output.flush();
-    
-        // Sauvegarder la session sur le serveur (si nécessaire)
-        activeSessions.put(sessionId, System.currentTimeMillis());
-    }
-
-    private static boolean isSessionValid(String sessionId) {
-        if (sessionId == null) return false;
-        // Verify if the session is still active (is in the map and not expired)
-        return activeSessions.containsKey(sessionId) && 
-               (System.currentTimeMillis() - activeSessions.get(sessionId)) < 600000;
     }
 
     /**
@@ -137,7 +113,6 @@ public class MinesweeperServer
                         }
                         else if (line.toLowerCase().contains("cookie:"))
                         {
-                            System.out.println("Cookie Header: " + line);
                             // Extraire l'ID de session du cookie
                             String[] cookies = line.split(":")[1].trim().split(";");
                             for (String cookie : cookies)
@@ -145,7 +120,6 @@ public class MinesweeperServer
                                 if (cookie.trim().startsWith("SESSID="))
                                 {
                                     sessionId = cookie.split("=")[1];
-                                    System.out.println("Session ID: " + sessionId);
                                 }
                             }
                         }
@@ -153,7 +127,6 @@ public class MinesweeperServer
                     // If websocket request, start the handshake
                     if (isWebSocketRequest)
                     {
-                        System.out.println("WebSocket request detected. Starting WebSocket handshake...");
                         if (MinesweeperServer.getMaxThreads() <= 0)
                         {
                             System.out.println("No threads available.");
@@ -161,7 +134,6 @@ public class MinesweeperServer
                             return;
                         }
                         MinesweeperServer.setMaxThreads(MinesweeperServer.getMaxThreads() - 1);
-                        System.out.println("Number of threads available: " + MinesweeperServer.getMaxThreads());
                 
                         Worker worker = new Worker(clientSocket, clientKey, sessionId);
                         worker.start();
@@ -186,26 +158,10 @@ public class MinesweeperServer
     {  
         // ============ Establish the handshake with the client ===============
         // DO NOT MODIFY THIS CODE
-        OutputStream output = clientSocket.getOutputStream();
-        System.out.println("Processing client requests for client " + clientSocket.getPort());
-    
         String clientKey = key;
         if (clientKey != null)
         {
-            // Compute the Sec-WebSocket-Accept key
-            String magicString = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-            String acceptKey = Base64.getEncoder()
-                    .encodeToString(MessageDigest.getInstance("SHA-1")
-                    .digest((clientKey + magicString).getBytes("UTF-8")));
-    
-            // Send the handshake response to the client
-            String response = "HTTP/1.1 101 Switching Protocols\r\n" +
-                              "Upgrade: websocket\r\n" +
-                              "Connection: Upgrade\r\n" +
-                              "Sec-WebSocket-Accept: " + acceptKey + "\r\n\r\n";
-            output.write(response.getBytes("UTF-8"));
-            output.flush();
-            System.out.println("WebSocket handshake successful.");
+            session = upgradeToWebSocket(clientSocket, clientKey, session);
         }
         else
         {
@@ -220,12 +176,13 @@ public class MinesweeperServer
         SendImages(webSocket);
         // Read the input from the client
         String receivedMessage = null;
-        // Create a new grid object
-        Grid grid = new Grid(GRID_SIZE);
         // Set the timeout for the client socket
         clientSocket.setSoTimeout(INACTIVE_TIME_OUT);
+        // Get the grid object from the active sessions map (should be initialized in the handshake)
+        Grid grid = activeSessions.get(session).getCurrentGame();
+        webSocket.send(grid.convertGridToProtocol(false));
+
         // Timer must start here
-        //
         try
         {
             // Loop until the client sends a "QUIT" command
@@ -244,6 +201,13 @@ public class MinesweeperServer
 
                     System.out.println("Received message: " + receivedMessage);
                     processCommand(receivedMessage, grid, clientSocket, webSocket);
+                    // Check if the game is over, if so, remove the session
+                    if(grid.isWin() || grid.isLose())
+                    {
+                        activeSessions.remove(session);
+                        System.out.println("Game over for client " 
+                            + clientSocket.getPort() + " session removed.");
+                    }
                 }
                 catch (IOException e) 
                 {
@@ -323,12 +287,7 @@ public class MinesweeperServer
         else if(isTryCommand(receivedMessage))
         {
             System.out.println("TRY command received.");
-            boolean isOver = handleTryCommand(receivedMessage, grid, webSocket);
-            if(isOver)
-            {
-                System.out.println("Game over for client " 
-                    + clientSocket.getPort());
-            }
+            handleTryCommand(receivedMessage, grid, webSocket);
         } 
         else 
         {
@@ -578,11 +537,19 @@ public class MinesweeperServer
         return input.equals(CHEAT_COMMAND);
     }
 
+    /**
+     * Get the maximum number of threads.
+     * @return The maximum number of threads.
+     */
     public static int getMaxThreads()
     {
         return maxThreads;
     }
 
+    /**
+     * Set the maximum number of threads.
+     * @param maxThreads The maximum number of threads.
+     */
     public static void setMaxThreads(int maxThreads)
     {
         MinesweeperServer.maxThreads = maxThreads;
@@ -599,6 +566,92 @@ public class MinesweeperServer
         output.flush();
         clientSocket.close();
     }
+
+    /**
+     * Upgrade the client connection to a WebSocket connection. The session cookie is returned.
+     * @param clientSocket The client socket.
+     * @param clientKey The client key.
+     * @param clientSession The client session.
+     */
+    private static String upgradeToWebSocket(Socket clientSocket, String clientKey, String clientSession) throws IOException, NoSuchAlgorithmException
+    {
+        OutputStream output = clientSocket.getOutputStream();
+        String magicString = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+        String acceptKey = Base64.getEncoder()
+                .encodeToString(MessageDigest.getInstance("SHA-1")
+                .digest((clientKey + magicString).getBytes("UTF-8")));
+    
+        boolean sendCookie = false;
+        refreshSessions();
+        // Check if the session is valid, should erase expired sessions
+        if (clientSession == null || !isSessionValid(clientSession))
+        {
+            System.out.println("No session found: " + clientSession);
+            sendCookie = true;
+            clientSession = generateSessionCookie(clientSocket);
+        } 
+        else
+        {
+            System.out.println("Valid session found: " + clientSession);
+        }
+    
+        // Build the WebSocket handshake response
+        StringBuilder response = new StringBuilder();
+        response.append("HTTP/1.1 101 Switching Protocols\r\n")
+                .append("Upgrade: websocket\r\n")
+                .append("Connection: Upgrade\r\n")
+                .append("Sec-WebSocket-Accept: ").append(acceptKey).append("\r\n");
+    
+        // Only set a new cookie if required
+        if (sendCookie)
+        {
+            response.append("Set-Cookie: SESSID=").append(clientSession)
+                    .append("; Max-Age=600; Path=/; Domain=localhost; HttpOnly\r\n");
+            System.out.println("Sending new session cookie: " + clientSession);
+        }
+    
+        response.append("\r\n");
+        output.write(response.toString().getBytes());
+        output.flush();
+    
+        System.out.println("WebSocket handshake completed.");
+        return clientSession;
+    }
+
+    /*
+     * Generate a session cookie for the client. The cookie is stored in the activeSessions map.
+     */
+    private static String generateSessionCookie(Socket clientSocket) throws IOException
+    {
+        String sessionId = UUID.randomUUID().toString();
+        // Add the session to the active sessions map
+        activeSessions.put(sessionId, new SessionInfo(System.currentTimeMillis(), new Grid(GRID_SIZE)));
+        return sessionId;
+    }
+
+    /**
+     * Check if the session is still valid. (Not expired and in the active sessions map)
+     * @param sessionId The session ID.
+     * @return True if the session is valid, false otherwise.
+     */
+    private static boolean isSessionValid(String sessionId)
+    {
+        if (sessionId == null) return false;
+        // Verify if the session is still active (is in the map and not expired)
+        return activeSessions.containsKey(sessionId) && 
+               (System.currentTimeMillis() - activeSessions.get(sessionId).getTimestamp()) < 600000;
+    }
+
+    /**
+     * Refresh the active sessions. (Remove expired sessions)
+     */
+    private static void refreshSessions()
+    {
+        // Remove expired sessions
+        activeSessions.entrySet().removeIf(entry -> 
+            (System.currentTimeMillis() - entry.getValue().getTimestamp()) >= 600000);
+    }
+    
 
     private static void sendPlayHtmlPage(Socket clientSocket) throws IOException
     {
