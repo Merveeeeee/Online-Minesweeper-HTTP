@@ -91,6 +91,13 @@ public class MinesweeperServer
                     sendPlayHtmlPage(clientSocket);
                     return;
                 }
+                else if (line != null && line.startsWith("POST /submitName HTTP/1.1")) 
+                {
+                    System.out.println("Name submission detected.");
+                    handleNameSubmission(clientSocket, reader);
+                    redirectToPlayPage(clientSocket);
+                    return;
+                }
                 // Check if the client is using a WebSocket
                 else
                 {
@@ -124,6 +131,7 @@ public class MinesweeperServer
                             }
                         }
                     }
+
                     // If websocket request, start the handshake
                     if (isWebSocketRequest)
                     {
@@ -651,6 +659,62 @@ public class MinesweeperServer
         activeSessions.entrySet().removeIf(entry -> 
             (System.currentTimeMillis() - entry.getValue().getTimestamp()) >= 600000);
     }
+
+    private static String handleNameSubmission(Socket clientSocket, BufferedReader reader) throws IOException
+    {
+        String line;
+        String sessionId = null;
+        String playerName = null;
+    
+        // Read headers
+        while ((line = reader.readLine()) != null && !line.isEmpty())
+        {
+            // Look for the Cookie header
+            if (line.toLowerCase().startsWith("cookie:"))
+            {
+                // Skip the "Cookie: " prefix
+                String[] cookies = line.substring(7).trim().split(";");
+                for (String cookie : cookies)
+                {
+                    String[] cookieParts = cookie.trim().split("=");
+                    if (cookieParts[0].equals("SESSID"))
+                    {
+                        sessionId = cookieParts[1];
+                        break;
+                    }
+                }
+            }
+        }
+    
+        // Read the body of the POST request
+        char[] body = new char[1024];
+        int length = reader.read(body);
+        String requestBody = new String(body, 0, length);
+    
+        // Parse the request body to get the player name
+        String[] params = requestBody.split("&");
+        for (String param : params) {
+            if (param.startsWith("playerName="))
+            {
+                playerName = URLDecoder.decode(param.split("=")[1], "UTF-8");
+                break;
+            }
+        }
+    
+        // Associate the name with the session
+        if (sessionId != null && activeSessions.containsKey(sessionId))
+        {
+            System.out.println("Session ID: " + sessionId + ", Name set: " + playerName);
+            activeSessions.get(sessionId).setPlayerName(playerName);
+        } 
+        else
+        {
+            System.out.println("Session not found for player name submission.");
+        }
+    
+        return playerName;
+    }
+    
     
 
     private static void sendPlayHtmlPage(Socket clientSocket) throws IOException
@@ -878,7 +942,7 @@ public class MinesweeperServer
         "<body>\n" +
         "    <h1>Minesweeper</h1>\n" +
         "    <div class=\"container\">\n" +
-        "        <form method=\"POST\" action=\"\">\n" +
+        "        <form method=\"POST\" action=\"/submitName\">\n" +
         "            <input type=\"text\" name=\"playerName\" placeholder=\"Your name\" required />\n" +
         "            <input type=\"submit\" value=\"Submit Name\" />\n" +
         "        </form>\n" +
