@@ -215,6 +215,7 @@ public class MinesweeperServer
                     if(grid.isWin() || grid.isLose())
                     {
                         Long endTimer = System.currentTimeMillis() - initialTimer;
+                        //PAS OUBLIER
                         if(grid.isWin()|| grid.isLose())
                         {
                             String playerName = activeSessions.get(session).getPlayerName();
