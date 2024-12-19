@@ -20,7 +20,7 @@ public class MinesweeperServer
     private static final int INACTIVE_TIME_OUT = 600000;
 
     // Map to store the players' names and their scores (will be used for the leaderboard)
-    private static Map<String, Long> playersClassement = new HashMap<>();
+    private static Map<String, Long> playersClassement = new ConcurrentHashMap<>();
     // Map to store the active sessions (cookie ID, session info)
     private static Map<String, SessionInfo> activeSessions = new ConcurrentHashMap<>();
 
