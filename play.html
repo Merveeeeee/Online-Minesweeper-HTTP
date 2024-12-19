@@ -114,6 +114,14 @@
             <input type="submit" value="LEADERBOARD"/>
         </form>
 
+        <!-- The project should not support <noscript> based on the assignment -->
+        <noscript>
+            <div style="text-align:center; margin-top:50px;">
+                <h2>JavaScript desactivated</h2>
+                <p>JavaScript need to be activated to play the game</p>
+            </div>
+        </noscript>
+
         <script>
             // Connect to the WebSocket server
             const ws = new WebSocket("ws://localhost:8013/ws");

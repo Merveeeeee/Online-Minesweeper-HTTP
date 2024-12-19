@@ -144,7 +144,6 @@ public class MinesweeperServer
                             }
                         }
                     }
-
                     // If websocket request, start the handshake
                     if (isWebSocketRequest)
                     {
@@ -154,6 +153,7 @@ public class MinesweeperServer
                             clientSocket.close();
                             return;
                         }
+                        System.out.println("WebSocket request detected.");
                         MinesweeperServer.setMaxThreads(MinesweeperServer.getMaxThreads() - 1);
                 
                         Worker worker = new Worker(clientSocket, clientKey, sessionId);
@@ -849,6 +849,12 @@ public class MinesweeperServer
         + "        <tbody>\n"
         + "        </tbody>\n"
         + "    </table>\n"
+        + "    <noscript>\n"
+        + "        <div style=\"text-align:center; margin-top:50px;\">\n"
+        + "            <h2>JavaScript desactivated</h2>\n"
+        + "            <p>JavaScript need to be activated to play the game</p>\n"
+        + "        </div>\n"
+        + "    </noscript>\n"
         + "    <script>\n"
         + "        // Connect to the WebSocket server\n"
         + "        const ws = new WebSocket(\"ws://localhost:8013/ws\");\n"
@@ -1126,6 +1132,12 @@ public class MinesweeperServer
         "    <form method=\"POST\" action=\"/leaderboard\">\n" +
         "        <input type=\"submit\" value=\"LEADERBOARD\"\"/>\n" +
         "    </form>\n" +
+        "    <noscript>\n" +
+        "        <div style=\"text-align:center; margin-top:50px;\">\n" +
+        "            <h2>JavaScript desactivated</h2>\n" +
+        "            <p>JavaScript need to be activated to play the game</p>\n" +
+        "        </div>\n" +
+        "    </noscript>\n" +
             script + "\n" +
         "</body>\n" +
         "</html>";
