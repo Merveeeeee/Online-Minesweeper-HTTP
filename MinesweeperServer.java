@@ -139,6 +139,20 @@ public class MinesweeperServer
                     clientSocket.close();
                     return;
                 }
+                // Handle 501 code
+                else if(line != null && line.startsWith("HEAD") || line.startsWith("CONNECT") || line.startsWith("TRACE")
+                    || line.startsWith("PATCH") || line.startsWith("OPTIONS"))
+                {
+                    System.out.println("Method not implemented.");
+                    OutputStream output = clientSocket.getOutputStream();
+                    String httpResponse = "HTTP/1.1 501 Not Implemented\r\n" +
+                                          "Connection: close\r\n" +
+                                          "\r\n";
+                    output.write(httpResponse.getBytes());
+                    output.flush();
+                    clientSocket.close();
+                    return;
+                }
                 // Check if the client is using a WebSocket
                 else
                 {
@@ -187,9 +201,9 @@ public class MinesweeperServer
                         Worker worker = new Worker(clientSocket, clientKey, sessionId);
                         worker.start();
                     }
+                    // Send a 404 code if the page is not found
                     else
                     {
-                        // Send a 404 code if the page is not found
                         System.out.println("Page not found");
                         OutputStream output = clientSocket.getOutputStream();
                         String httpResponse = "HTTP/1.1 404 Not Found\r\n" +
