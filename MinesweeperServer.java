@@ -140,7 +140,9 @@ public class MinesweeperServer
                     return;
                 }
                 // Handle 501 code
-                else if(line != null && line.startsWith("HEAD") || line.startsWith("CONNECT") || line.startsWith("TRACE")
+                else if(line != null && line.startsWith("HEAD") 
+                    || line.startsWith("CONNECT") 
+                    || line.startsWith("TRACE")
                     || line.startsWith("PATCH") || line.startsWith("OPTIONS"))
                 {
                     System.out.println("Method not implemented.");
@@ -231,7 +233,8 @@ public class MinesweeperServer
      * @param webSocket The WebSocket object.
      * @throws IOException If an I/O error occurs.
      */
-    public static void processClientRequests(Socket clientSocket, String key, String session) throws IOException, NoSuchAlgorithmException
+    public static void processClientRequests(Socket clientSocket, String key, String session) 
+        throws IOException, NoSuchAlgorithmException
     {  
         // ============ Establish the handshake with the client ===============
         // DO NOT MODIFY THIS CODE
@@ -280,12 +283,12 @@ public class MinesweeperServer
                         continue;
                     }
 
-                    System.out.println("Received message: " + receivedMessage);
                     processCommand(receivedMessage, grid, clientSocket, webSocket);
                     // Check if the game is over, if so, remove the session
                     if(grid.isWin() || grid.isLose())
                     {
                         Long endTimer = System.currentTimeMillis() - initialTimer;
+                        // Add the player to the leaderboard if win and remove the session
                         if(grid.isWin())
                         {
                             String playerName = activeSessions.get(session).getPlayerName();
@@ -312,6 +315,12 @@ public class MinesweeperServer
         }
     }
 
+    /**
+     * Generate the JSON string for the leaderboard.
+     * @param output The output stream to the client.
+     * @param content The content to send to the client.
+     * @throws IOException If an I/O error occurs.
+     */
     private static String generateJsonClassement(Map<String, Long> playersClassement) 
     {
         // First, we need to sort the playersClassement map by value
@@ -391,22 +400,18 @@ public class MinesweeperServer
         // Verify the command from the client
         if(isQuitCommand(receivedMessage))
         {
-            System.out.println("QUIT command received.");
             handleQuitCommand(clientSocket);
         } 
         else if(isCheatCommand(receivedMessage))
         {
-            System.out.println("CHEAT command received.");
             handleCheatCommand(grid, webSocket);
         } 
         else if(isFlagCommand(receivedMessage))
         {
-            System.out.println("FLAG command received.");
             handleFlagCommand(receivedMessage, grid, webSocket, clientSocket);
         } 
         else if(isTryCommand(receivedMessage))
         {
-            System.out.println("TRY command received.");
             handleTryCommand(receivedMessage, grid, webSocket, clientSocket);
         } 
         else 
@@ -471,7 +476,8 @@ public class MinesweeperServer
      * @param outputServer The output stream to the client.
      * @throws IOException If an I/O error occurs.
      */
-    private static boolean handleTryCommand(String input, Grid grid, WebSocket webSocket, Socket clientSocket) throws IOException
+    private static boolean handleTryCommand(String input, Grid grid, WebSocket webSocket, Socket clientSocket) 
+    throws IOException
     {
         boolean isOver = false;
         // Write the updated grid to the client if the coordinates are valid
@@ -669,6 +675,11 @@ public class MinesweeperServer
         MinesweeperServer.maxThreads = maxThreads;
     }
 
+    /**
+     * Redirect the client to the play.html page.
+     * @param clientSocket The client socket.
+     * @throws IOException If an I/O error occurs.
+     */
     private static void redirectToPlayPage(Socket clientSocket) throws IOException
     {
         OutputStream output = clientSocket.getOutputStream();
@@ -681,6 +692,11 @@ public class MinesweeperServer
         clientSocket.close();
     }
 
+    /**
+     * Redirect the client to the leaderboard.html page.
+     * @param clientSocket The client socket.
+     * @throws IOException If an I/O error occurs.
+     */
     private static void redirectToLeaderboardPage(Socket clientSocket) throws IOException
     {
         OutputStream output = clientSocket.getOutputStream();
@@ -1214,7 +1230,8 @@ public class MinesweeperServer
      * @param content The content to send.
      * @throws IOException
      */
-    private static void sendChunkedResponse(OutputStream output, String content) throws IOException {
+    private static void sendChunkedResponse(OutputStream output, String content) throws IOException
+    {
         int maxChunkSize = 128; // Maximum chunk size in bytes
         byte[] contentBytes = content.getBytes();
         int contentLength = contentBytes.length;
@@ -1234,7 +1251,8 @@ public class MinesweeperServer
      * @param output The output stream to the client.
      * @throws IOException
      */
-    private static void sendFinalChunk(OutputStream output) throws IOException {
+    private static void sendFinalChunk(OutputStream output) throws IOException 
+    {
         output.write("0\r\n\r\n".getBytes());
         output.flush();
     }
