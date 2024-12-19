@@ -92,12 +92,14 @@ public class MinesweeperServer
                     sendPlayHtmlPage(clientSocket);
                     return;
                 }
+                // Send the dynamic leaderboard.html page to the client if requested
                 else if(line != null && line.startsWith("GET /leaderboard.html HTTP/1.1"))
                 {
                     System.out.println("Sending dynamic leaderboard.html page to client " + clientSocket.getPort());
                     sendLeaderboardHtmlPage(clientSocket);
                     return;
                 }
+                // Handle the name submission from the client
                 else if (line != null && line.startsWith("POST /submitName HTTP/1.1")) 
                 {
                     System.out.println("Name submission detected.");
@@ -105,6 +107,7 @@ public class MinesweeperServer
                     redirectToPlayPage(clientSocket);
                     return;
                 }
+                // Handle the leaderboard submission from the client (button in play.html)
                 else if (line != null && line.startsWith("POST /leaderboard HTTP/1.1")) 
                 {
                     System.out.println("Leaderboard submission detected.");
@@ -1232,7 +1235,7 @@ public class MinesweeperServer
      */
     private static void sendChunkedResponse(OutputStream output, String content) throws IOException
     {
-        int maxChunkSize = 128; // Maximum chunk size in bytes
+        int maxChunkSize = 128;
         byte[] contentBytes = content.getBytes();
         int contentLength = contentBytes.length;
     
