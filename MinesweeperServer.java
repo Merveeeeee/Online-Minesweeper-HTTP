@@ -139,21 +139,6 @@ public class MinesweeperServer
                     clientSocket.close();
                     return;
                 }
-                // Handle 404 HTTP code
-                else if (line != null && line.startsWith("GET ")) {
-                    // Ici, si on est dans ce cas, c'est qu'on ne traite ni / ni /play.html ni /leaderboard.html
-                    // Envoyer une réponse 404
-                    System.out.println("Page not found: " + line);
-                    OutputStream output = clientSocket.getOutputStream();
-                    String httpResponse = "HTTP/1.1 404 Not Found\r\n" +
-                                          "Content-Type: text/plain\r\n" +
-                                          "Connection: close\r\n\r\n" +
-                                          "The requested resource was not found on this server.\r\n";
-                    output.write(httpResponse.getBytes("UTF-8"));
-                    output.flush();
-                    clientSocket.close();
-                    return;
-                }
                 // Check if the client is using a WebSocket
                 else
                 {
@@ -201,6 +186,20 @@ public class MinesweeperServer
                 
                         Worker worker = new Worker(clientSocket, clientKey, sessionId);
                         worker.start();
+                    }
+                    else
+                    {
+                        // Send a 404 code if the page is not found
+                        System.out.println("Page not found");
+                        OutputStream output = clientSocket.getOutputStream();
+                        String httpResponse = "HTTP/1.1 404 Not Found\r\n" +
+                                            "Content-Type: text/plain\r\n" +
+                                            "Connection: close\r\n\r\n" +
+                                            "The requested resource was not found on this server.\r\n";
+                        output.write(httpResponse.getBytes("UTF-8"));
+                        output.flush();
+                        clientSocket.close();
+                        return;
                     }
                 }
             }
@@ -389,12 +388,12 @@ public class MinesweeperServer
         else if(isFlagCommand(receivedMessage))
         {
             System.out.println("FLAG command received.");
-            handleFlagCommand(receivedMessage, grid, webSocket);
+            handleFlagCommand(receivedMessage, grid, webSocket, clientSocket);
         } 
         else if(isTryCommand(receivedMessage))
         {
             System.out.println("TRY command received.");
-            handleTryCommand(receivedMessage, grid, webSocket);
+            handleTryCommand(receivedMessage, grid, webSocket, clientSocket);
         } 
         else 
         {
@@ -433,7 +432,7 @@ public class MinesweeperServer
      * @param outputServer The output stream to the client.
      * @throws IOException If an I/O error occurs.
      */
-    private static void handleFlagCommand(String input, Grid grid, WebSocket webSocket) 
+    private static void handleFlagCommand(String input, Grid grid, WebSocket webSocket, Socket clientSocket) 
         throws IOException
     {
         // Write the updated grid to the client if the coordinates are valid
@@ -441,8 +440,7 @@ public class MinesweeperServer
         {
             if(!areCoordinatesInRange(input))
             {
-                //outputServer.write("INVALID RANGE\r\n\r\n".getBytes());
-                //outputServer.flush();
+                sendCode400(clientSocket);
                 return;
             }
             grid.flagCell(getXCoordinate(input), getYCoordinate(input));
@@ -450,8 +448,7 @@ public class MinesweeperServer
         }
         else
         {
-            //outputServer.write("WRONG\r\n\r\n".getBytes());
-            //outputServer.flush();
+            sendCode400(clientSocket);
         }
     }
     
@@ -460,7 +457,7 @@ public class MinesweeperServer
      * @param outputServer The output stream to the client.
      * @throws IOException If an I/O error occurs.
      */
-    private static boolean handleTryCommand(String input, Grid grid, WebSocket webSocket) throws IOException
+    private static boolean handleTryCommand(String input, Grid grid, WebSocket webSocket, Socket clientSocket) throws IOException
     {
         boolean isOver = false;
         // Write the updated grid to the client if the coordinates are valid
@@ -468,8 +465,7 @@ public class MinesweeperServer
         {
             if(!areCoordinatesInRange(input))
             {
-                //outputServer.write("INVALID RANGE\r\n\r\n".getBytes());
-                //outputServer.flush();
+                sendCode400(clientSocket);
                 return false;
             }
             grid.revealCell(getXCoordinate(input), getYCoordinate(input));
@@ -481,9 +477,7 @@ public class MinesweeperServer
         }
         else
         {
-            // Client sent invalid coordinates
-            //outputServer.write("WRONG\r\n\r\n".getBytes());
-            //outputServer.flush();
+            sendCode400(clientSocket);
             isOver = false;
         }
         return isOver;
@@ -497,8 +491,7 @@ public class MinesweeperServer
      */
     private static void handleWrongCommand(Socket clientSocket) throws IOException
     {
-        //outputServer.write("WRONG\r\n\r\n".getBytes());
-        //outputServer.flush();
+        sendCode400(clientSocket);
         printWrongInputMessage(clientSocket);
     }
 
@@ -759,6 +752,17 @@ public class MinesweeperServer
         // Verify if the session is still active (is in the map and not expired)
         return activeSessions.containsKey(sessionId) && 
                (System.currentTimeMillis() - activeSessions.get(sessionId).getTimestamp()) < 600000;
+    }
+
+    private static void sendCode400(Socket clientSocket) throws IOException
+    {
+        OutputStream output = clientSocket.getOutputStream();
+        String httpResponse = "HTTP/1.1 400 Bad Request\r\n" +
+                              "Connection: close\r\n" +
+                              "\r\n";
+        output.write(httpResponse.getBytes());
+        output.flush();
+        clientSocket.close();
     }
 
     /**
