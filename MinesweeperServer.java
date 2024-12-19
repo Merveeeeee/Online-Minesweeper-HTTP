@@ -111,6 +111,49 @@ public class MinesweeperServer
                     redirectToLeaderboardPage(clientSocket);
                     return;
                 }
+                // Handle 505 HTTP code
+                else if(line != null && line.startsWith("GET / HTTP/0.9") 
+                    || line.startsWith("GET / HTTP/1.0") 
+                    || line.startsWith("GET / HTTP/2") || line.startsWith("GET / HTTP/3"))
+                {
+                    System.out.println("HTTP version not supported.");
+                    OutputStream output = clientSocket.getOutputStream();
+                    String httpResponse = "HTTP/1.1 505 HTTP Version Not Supported\r\n" +
+                                          "Connection: close\r\n" +
+                                          "\r\n";
+                    output.write(httpResponse.getBytes());
+                    output.flush();
+                    clientSocket.close();
+                    return;
+                }
+                // Handle 405 code
+                else if(line != null && line.startsWith("PUT") || line.startsWith("DELETE"))
+                {
+                    System.out.println("Method not allowed.");
+                    OutputStream output = clientSocket.getOutputStream();
+                    String httpResponse = "HTTP/1.1 405 Method Not Allowed\r\n" +
+                                          "Connection: close\r\n" +
+                                          "\r\n";
+                    output.write(httpResponse.getBytes());
+                    output.flush();
+                    clientSocket.close();
+                    return;
+                }
+                // Handle 404 HTTP code
+                else if (line != null && line.startsWith("GET ")) {
+                    // Ici, si on est dans ce cas, c'est qu'on ne traite ni / ni /play.html ni /leaderboard.html
+                    // Envoyer une réponse 404
+                    System.out.println("Page not found: " + line);
+                    OutputStream output = clientSocket.getOutputStream();
+                    String httpResponse = "HTTP/1.1 404 Not Found\r\n" +
+                                          "Content-Type: text/plain\r\n" +
+                                          "Connection: close\r\n\r\n" +
+                                          "The requested resource was not found on this server.\r\n";
+                    output.write(httpResponse.getBytes("UTF-8"));
+                    output.flush();
+                    clientSocket.close();
+                    return;
+                }
                 // Check if the client is using a WebSocket
                 else
                 {
